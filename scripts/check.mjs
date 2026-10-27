@@ -29,7 +29,7 @@ const missingInEn = Object.keys(DE).filter((k) => !(k in EN))
 const missingInDe = Object.keys(EN).filter((k) => !(k in DE))
 check('de and en have the same keys', !missingInEn.length && !missingInDe.length, [...missingInEn, ...missingInDe].join(', '))
 const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8')
-const unknown = [...html.matchAll(/data-i18n(?:-html|-placeholder|-label)?="([^"]+)"/g)].map((m) => m[1]).filter((k) => !(k in DE))
+const unknown = [...html.matchAll(/data-i18n(?:-html|-placeholder|-label|-alt)?="([^"]+)"/g)].map((m) => m[1]).filter((k) => !(k in DE))
 check('every key in index.html exists', !unknown.length, unknown.join(', '))
 const loud = [...Object.entries(DE), ...Object.entries(EN)].filter(([, v]) => v.includes('!')).map(([k]) => k)
 check('no exclamation marks in any text (O₂ voice)', !loud.length, loud.join(', '))
@@ -56,8 +56,11 @@ check('function: sends the visitor’s IP along', seen[0]?.ip === '203.0.113.7')
 check('function: keeps the rotated token to itself', reply.headers.get('wb-token') === null && (await reply.text()) === '{"answer_id":"sc_1"}')
 reply = await call('/api/v1/feedback')
 check('function: passes /api/v1/feedback on', reply.status === 200 && seen[1]?.path === '/v1/feedback')
+const screenshot = JSON.stringify({ language: 'de', image: { mime_type: 'image/jpeg', data: 'A'.repeat(3_000_000) } })
+reply = await proxy(new Request('https://site.example/api/v1/scam-check', { method: 'POST', body: screenshot }), {})
+check('function: passes a screenshot (3 MB of base64) on unchanged', reply.status === 200 && seen[2]?.body === screenshot)
 const refused = [await call('/api/health/check', 'GET'), await call('/api/v2/anything')]
-check('function: refuses any other path or method, without calling the backend', refused.every((r) => r.status === 404) && seen.length === 2)
+check('function: refuses any other path or method, without calling the backend', refused.every((r) => r.status === 404) && seen.length === 3)
 backend.close()
 process.env.SCAM_CHECK_URL = 'http://localhost:9' // nothing listens there
 reply = await call('/api/v1/scam-check')
@@ -90,6 +93,32 @@ const showResult = async (p) => {
   await p.click('#submit')
   await p.waitForSelector('#result:not([hidden])', { timeout: 15000 })
 }
+// A picture to attach, drawn in the page as a PNG: a dark bubble in the middle, the rest transparent.
+const png = async (p, width, height) =>
+  Buffer.from(
+    await p.evaluate(([width, height]) => {
+      const canvas = Object.assign(document.createElement('canvas'), { width, height })
+      const context = canvas.getContext('2d')
+      context.fillStyle = '#00008c'
+      context.fillRect(width / 4, height / 3, width / 2, height / 6)
+      return canvas.toDataURL('image/png').split(',')[1]
+    }, [width, height]),
+    'base64',
+  )
+const picture = (buffer, name = 'chat.png') => ({ name, mimeType: 'image/png', buffer })
+// A paste into the field, as the clipboard would bring it: a picture, maybe with text.
+const paste = (p, buffer, text = null) =>
+  p.evaluate(
+    ([bytes, text]) => {
+      const clipboard = new DataTransfer()
+      clipboard.items.add(new File([new Uint8Array(bytes)], 'clip.png', { type: 'image/png' }))
+      if (text) clipboard.setData('text/plain', text)
+      document.getElementById('message').dispatchEvent(new ClipboardEvent('paste', { clipboardData: clipboard, bubbles: true, cancelable: true }))
+    },
+    [[...buffer], text],
+  )
+// What screen readers hear: #status is emptied first and filled a frame later.
+const said = (p, text) => p.waitForFunction((text) => document.getElementById('status').textContent === text, text, { timeout: 1000 }).then(() => true, () => false)
 const state = (p, selector) => p.locator(selector).evaluate((el) => el.dataset.state ?? 'idle')
 const finishAnimations = (p, selector) => p.locator(selector).evaluate((el) => el.getAnimations({ subtree: true }).forEach((a) => a.finish()))
 const pageErrors = []
@@ -249,15 +278,48 @@ else {
   check('other text shows the demo notice at once', await visible(p, '#notice'))
   await p.click('#notice-example')
   check('the notice button fills the example and hides the notice', (await p.inputValue('#message')) === EXAMPLES.de && !(await visible(p, '#slot')))
+  await p.setInputFiles('#picker', picture(await png(p, 600, 1300)))
+  await p.waitForSelector('#shot:not([hidden])')
+  await p.click('#submit')
+  check('a screenshot, even with the example, shows the demo notice', await visible(p, '#notice'))
+  await p.click('#notice-example')
+  check('the notice’s example removes the screenshot (only text gets the stand-in answer)', !(await visible(p, '#shot')) && (await visible(p, '#example')))
 }
 
-// Screenshot popup
-await p.click('#upload')
-check('the camera button opens the popup', await visible(p, '#upload-dialog'))
-await p.keyboard.press('Escape')
-check('Escape closes the popup', !(await visible(p, '#upload-dialog')))
-check('focus returns to the camera button', (await focusedId(p)) === 'upload')
 pageErrors.push(...p.logs.filter((l) => l.startsWith('PAGEERROR')))
+
+// Screenshot: picked or pasted, one at a time, in the tools' place
+const sh = await open()
+const CHAT = await png(sh, 600, 1300)
+const buttonBottom = () => sh.evaluate(() => document.getElementById('submit').getBoundingClientRect().bottom)
+const bottomBefore = await buttonBottom()
+const [chooser] = await Promise.all([sh.waitForEvent('filechooser'), sh.click('#upload')])
+check('the camera button opens the picker, for any picture', (await sh.getAttribute('#picker', 'accept')) === 'image/*')
+await chooser.setFiles(picture(CHAT))
+await sh.waitForSelector('#shot:not([hidden])')
+check('a picked screenshot shows as a thumbnail, in place of the example and the camera', (await sh.locator('#shot-img').evaluate((img) => img.naturalWidth > 0)) && !(await visible(sh, '#example')) && !(await visible(sh, '#upload')))
+check('focus moves to its ×, screen readers hear it was added', (await focusedId(sh)) === 'shot-remove' && (await said(sh, DE['form.added'])))
+check('with a screenshot the text is optional, and the placeholder says so', (await sh.getAttribute('#message', 'placeholder')) === DE['form.placeholder.shot'])
+check('with a screenshot the field gets shorter, nothing moves down', (await buttonBottom()) <= bottomBefore, `${bottomBefore} -> ${await buttonBottom()}`)
+await sh.click('[data-lang="en"]')
+check('the thumbnail and the placeholder follow the language', (await sh.getAttribute('#shot-img', 'alt')) === EN['form.shot'] && (await sh.getAttribute('#message', 'placeholder')) === EN['form.placeholder.shot'])
+await sh.click('[data-lang="de"]')
+await sh.click('#shot-remove')
+check('× removes it, the tools come back, focus goes to the camera', !(await visible(sh, '#shot')) && (await visible(sh, '#example')) && (await focusedId(sh)) === 'upload' && (await said(sh, DE['form.removed'])))
+check('without a screenshot the placeholder asks for the message again', (await sh.getAttribute('#message', 'placeholder')) === DE['form.placeholder'])
+await paste(sh, CHAT, 'Ihr Paket wartet')
+await sh.waitForTimeout(300)
+check('pasting text that comes with a picture (Outlook, Word) attaches nothing', !(await visible(sh, '#shot')))
+await sh.focus('#message')
+await paste(sh, CHAT, ' ')
+await sh.waitForSelector('#shot:not([hidden])')
+check('pasting a picture into the field attaches it (an empty text beside it doesn’t count), the field keeps focus', (await focusedId(sh)) === 'message')
+await sh.setInputFiles('#picker', picture(Buffer.from('not a picture'), 'note.png'))
+await sh.waitForSelector('#hint:not([hidden])')
+check('a file the browser can’t show gets its hint, also for screen readers, and keeps the screenshot', (await sh.textContent('#hint')) === DE['form.image'] && (await said(sh, DE['form.image'])) && (await visible(sh, '#shot')))
+await sh.click('#shot-remove')
+check('× also clears that hint: there is no picture now', !(await visible(sh, '#hint')))
+pageErrors.push(...sh.logs.filter((l) => l.startsWith('PAGEERROR')))
 
 // Phone with the keyboard open (about 400 px visible)
 const k = await open('', { viewport: { width: 390, height: 400 } })
@@ -427,10 +489,37 @@ await L.click('#reset')
 await ask(PHISH, plain(401, 'Token is expired'), ok(answerOf()))
 check('live: an expired refreshed token starts over once with the configured one', calls.at(-2)?.auth === 'token-2' && last().auth === 'token-1' && (await visible(L, '#result')))
 
+// Screenshots: { mime_type, data } as image, message only with text
+await L.click('#reset')
+await L.setInputFiles('#picker', picture(await png(L, 3000, 3000))) // 9 megapixels, transparent around the bubble
+await L.waitForSelector('#shot:not([hidden])')
+replies.push(ok(answerOf()))
+await L.click('#submit')
+await L.waitForTimeout(300)
+check('live: a screenshot alone is enough, the loader reads the screenshot', (await L.textContent('#progress-text')) === DE['progress.screenshot'] && !(await visible(L, '#hint')))
+await answered()
+const sent = last().body ?? {}
+check('live: a screenshot alone goes as image with the language, without message', sent.language === 'de' && !('message' in sent) && sent.image?.mime_type === 'image/jpeg', JSON.stringify({ ...sent, image: sent.image && { ...sent.image, data: `${sent.image.data?.length} chars` } }))
+check('live: the image is plain base64 of a JPEG, no data: prefix', /^\/9j\/[A-Za-z0-9+/]+=*$/.test(sent.image?.data ?? ''))
+const drawn = await L.evaluate(async (data) => {
+  const img = new Image()
+  img.src = `data:image/jpeg;base64,${data}`
+  await img.decode()
+  const canvas = Object.assign(document.createElement('canvas'), { width: img.naturalWidth, height: img.naturalHeight })
+  const context = canvas.getContext('2d')
+  context.drawImage(img, 0, 0)
+  return { width: canvas.width, height: canvas.height, corner: [...context.getImageData(0, 0, 1, 1).data].slice(0, 3) }
+}, sent.image?.data ?? '')
+check('live: a big picture is scaled to 4 megapixels at most, keeps its shape, on white', drawn.width * drawn.height <= 4_000_000 && drawn.width === drawn.height && drawn.width > 1900 && drawn.corner.every((v) => v > 245), JSON.stringify(drawn))
+check('live: the screenshot stays attached after the answer, like the text', await visible(L, '#shot'))
+await ask(PHISH, ok(answerOf()))
+check('live: text and screenshot go together', last().body?.message === PHISH && last().body?.image?.data === sent.image?.data)
+
 replies.push(ok(answerOf({ summary: 'This isn’t DHL.', language: 'en' })))
 await L.click('[data-lang="en"]')
 await L.waitForSelector('#result:not([lang])', { timeout: 15000 })
 check('live: a language switch asks the backend again, in English', last().body?.language === 'en' && (await L.textContent('#headline')) === 'This isn’t DHL.')
+check('live: … with the same text and screenshot', last().body?.message === PHISH && last().body?.image?.data === sent.image?.data)
 replies.push(error(500, 'GENERIC_ERROR'))
 await L.click('[data-lang="de"]')
 await L.waitForFunction(() => document.querySelector('[data-lang="de"]').getAttribute('aria-disabled') === 'false')

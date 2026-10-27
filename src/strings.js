@@ -1,6 +1,6 @@
 // Every visible text in both languages. index.html refers to these keys with
-// data-i18n (text), data-i18n-html (the few texts with markup), data-i18n-placeholder
-// and data-i18n-label (aria-label); main.js adds the keys of the scam stories.
+// data-i18n (text), data-i18n-html (the few texts with markup), data-i18n-placeholder,
+// data-i18n-label (aria-label) and data-i18n-alt; main.js adds the keys of the scam stories.
 // O₂ voice: short, spoken, no exclamation marks; German uses "du".
 // On Air has no "₂", so page text writes O<sub>2</sub>.   = no-break space, ‑ = no-break hyphen.
 // {name} is a scam type's name. share.message.* texts leave the page (share sheet, e-mail), so they use plain characters.
@@ -13,15 +13,22 @@ export const STRINGS = {
     'hero.lead': 'In Sekunden weißt du Bescheid.',
 
     'form.label': 'Verdächtige Nachricht',
-    'form.placeholder': 'Die ganze Nachricht einfügen,\naus SMS, E‑Mail oder WhatsApp.',
+    'form.placeholder': 'Die ganze Nachricht einfügen,\naus SMS, E‑Mail oder WhatsApp.\nGeht auch als Screenshot.',
+    'form.placeholder.shot': 'Noch etwas dazu? Geht auch ohne.',
     'form.example': 'Beispiel einfügen',
-    'form.screenshot': 'Screenshot hochladen',
+    'form.screenshot': 'Screenshot hinzufügen',
+    'form.shot': 'Dein Screenshot',
+    'form.remove': 'Screenshot entfernen',
+    'form.added': 'Screenshot hinzugefügt.',
+    'form.removed': 'Screenshot entfernt.',
     'form.submit': 'Jetzt prüfen',
     'form.busy': 'Wir prüfen …',
-    'form.empty': 'Füg zuerst eine Nachricht ein.',
+    'form.empty': 'Füg zuerst eine Nachricht oder einen Screenshot ein.',
     'form.long': 'Das ist zu lang. Füg nur die Nachricht selbst ein.',
+    'form.image': 'Mit diesem Bild klappt es nicht. Versuch einen anderen Screenshot.',
 
     'progress.read': 'Wir lesen die Nachricht …',
+    'progress.screenshot': 'Wir lesen deinen Screenshot …',
     'progress.link': 'Wir blättern in unserer Sperrliste …',
     'progress.tricks': 'Wir suchen nach bekannten Maschen …',
     'progress.think': 'Wir zählen eins und eins zusammen …',
@@ -113,11 +120,6 @@ export const STRINGS = {
     'scam.romance_scam.s2': 'Bitte Geld',
     'scam.romance_scam.s3': 'Herz gebrochen',
     'scam.romance_scam.rule': 'Schick nie Geld an jemanden, den du nie getroffen hast.',
-
-    'upload.title': 'Screenshots prüfen wir bald.',
-    'upload.text': 'Bitte hab noch etwas Geduld. Bis dahin kopier den Text und füg ihn ein.',
-    'upload.ok': 'Alles klar',
-    'upload.close': 'Schließen',
   },
 
   en: {
@@ -127,15 +129,22 @@ export const STRINGS = {
     'hero.lead': 'You’ll know in seconds.',
 
     'form.label': 'Suspicious message',
-    'form.placeholder': 'Paste the whole message,\nfrom a text, email or WhatsApp.',
+    'form.placeholder': 'Paste the whole message,\nfrom a text, email or WhatsApp.\nA screenshot works too.',
+    'form.placeholder.shot': 'Anything to add? It’s optional.',
     'form.example': 'Use example',
-    'form.screenshot': 'Upload a screenshot',
+    'form.screenshot': 'Add a screenshot',
+    'form.shot': 'Your screenshot',
+    'form.remove': 'Remove screenshot',
+    'form.added': 'Screenshot added.',
+    'form.removed': 'Screenshot removed.',
     'form.submit': 'Check now',
     'form.busy': 'Checking…',
-    'form.empty': 'Paste a message first.',
+    'form.empty': 'Paste a message or add a screenshot first.',
     'form.long': 'That’s too long. Paste just the message itself.',
+    'form.image': 'That image won’t work. Try another screenshot.',
 
     'progress.read': 'Reading the message…',
+    'progress.screenshot': 'Reading your screenshot…',
     'progress.link': 'Leafing through our blocklist…',
     'progress.tricks': 'Looking for known tricks…',
     'progress.think': 'Putting two and two together…',
@@ -227,10 +236,5 @@ export const STRINGS = {
     'scam.romance_scam.s2': 'Money, please',
     'scam.romance_scam.s3': 'Heartbroken',
     'scam.romance_scam.rule': 'Never send money to someone you’ve never met.',
-
-    'upload.title': 'We’ll check screenshots soon.',
-    'upload.text': 'Please bear with us. For now, copy and paste the text.',
-    'upload.ok': 'Got it',
-    'upload.close': 'Close',
   },
 }

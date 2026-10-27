@@ -24,6 +24,40 @@ async function open(viewport, { mobile = true, locale = 'de-DE' } = {}) {
 }
 const shot = (page, name, fullPage = false) => page.screenshot({ path: `${out}/${name}.png`, fullPage })
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+// A phone screenshot of a scam SMS, drawn in the page: what people will attach.
+const screenshot = async (page) => ({
+  name: 'Screenshot.png',
+  mimeType: 'image/png',
+  buffer: Buffer.from(
+    await page.evaluate(() => {
+      const canvas = Object.assign(document.createElement('canvas'), { width: 1179, height: 2556 })
+      const c = canvas.getContext('2d')
+      c.fillStyle = '#fff'
+      c.fillRect(0, 0, 1179, 2556)
+      c.fillStyle = '#f2f2f7'
+      c.fillRect(0, 0, 1179, 340)
+      c.fillStyle = '#000'
+      c.font = 'bold 52px sans-serif'
+      c.textAlign = 'center'
+      c.fillText('+49 1521 4471093', 590, 280)
+      c.fillStyle = '#e9e9eb'
+      c.beginPath()
+      c.roundRect(48, 420, 920, 380, 48)
+      c.fill()
+      c.fillStyle = '#000'
+      c.font = '46px sans-serif'
+      c.textAlign = 'left'
+      const lines = ['Ihr Paket wird beim Zoll', 'festgehalten. Bitte zahlen Sie', 'heute 2,99 € Gebühr:', 'paket-zoll-de.info/z/8K2P']
+      lines.forEach((line, i) => c.fillText(line, 96, 510 + i * 74))
+      return canvas.toDataURL('image/png').split(',')[1]
+    }),
+    'base64',
+  ),
+})
+const attach = async (page, file) => {
+  await page.setInputFiles('#picker', file ?? (await screenshot(page)))
+  await wait(500)
+}
 const resultShown = async (page) => {
   await page.waitForSelector('#result:not([hidden])', { timeout: 15000 })
   await wait(1800) // let the entry animations finish
@@ -68,22 +102,26 @@ await shot(m, 'm13-trick-story')
 await m.locator('#share').scrollIntoViewIfNeeded()
 await wait(3200)
 await shot(m, 'm14-protect-share')
-await m.click('#upload')
-await wait(500)
-await shot(m, 'm15-upload-popup')
-await m.keyboard.press('Escape')
 await m.click('#reset')
 await wait(900)
-await shot(m, 'm16-after-reset')
+await shot(m, 'm15-after-reset')
+await m.locator('#message').blur()
+await attach(m)
+await shot(m, 'm16-screenshot')
+await attach(m, { name: 'note.png', mimeType: 'image/png', buffer: Buffer.from('not a picture') })
+await shot(m, 'm17-image-error')
+await m.click('#shot-remove')
 await m.fill('#message', 'Hallo, kommst du heute Abend zum Essen? Liebe Grüße')
 await m.click('#submit')
 await m.waitForSelector('#notice:not([hidden])', { timeout: 15000 })
 await wait(900)
-await shot(m, 'm17-notice') // the demo's notice, or with .env.development.local the error notice
+await shot(m, 'm18-notice') // the demo's notice, or with .env.development.local the error notice
 
 // Small phones
 const se = await open({ width: 375, height: 667 })
 await shot(se, 's01-se-start')
+await attach(se)
+await shot(se, 's05-se-screenshot')
 const narrow = await open({ width: 360, height: 780 })
 await narrow.locator('.tiles-nav').scrollIntoViewIfNeeded()
 await shot(narrow, 's04-360-types')
@@ -107,6 +145,11 @@ await en.click('#example')
 await en.click('#submit')
 await resultShown(en)
 await shot(en, 'e03-result-full', true)
+await en.click('#reset')
+await en.locator('#message').blur()
+await attach(en)
+await en.evaluate(() => window.scrollTo(0, 0))
+await shot(en, 'e04-screenshot')
 
 // Desktop
 const d = await open({ width: 1440, height: 900 }, { mobile: false })
@@ -125,11 +168,16 @@ await shot(d, 'd03-checking')
 await resultShown(d)
 await shot(d, 'd04-result')
 await shot(d, 'd05-result-full', true)
-await d.click('#upload')
-await wait(500)
-await shot(d, 'd06-upload-popup')
+await d.click('#reset')
+await d.locator('#message').blur()
+await attach(d)
+await d.evaluate(() => window.scrollTo(0, 0))
+await shot(d, 'd06-screenshot')
 const laptop = await open({ width: 1024, height: 768 }, { mobile: false })
 await shot(laptop, 'd07-1024-start')
+await attach(laptop)
+await shot(laptop, 'd11-1024-screenshot')
+await laptop.click('#shot-remove')
 await laptop.locator('.tiles-nav').scrollIntoViewIfNeeded()
 await shot(laptop, 'd09-1024-types')
 await laptop.click('#example')

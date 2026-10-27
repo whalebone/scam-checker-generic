@@ -19,7 +19,7 @@ These are the acceptance criteria for the page:
 - A nice-looking, clean, minimalist O₂ page that follows the o2-design skill. Mobile first.
 - Minimal text. The user always knows what to do next.
 - One example case, no backend yet. Use only the key fields of the proposed response.
-- Image upload exists, but for now it only shows a popup asking for patience.
+- Image upload exists, but for now it only shows a popup asking for patience. (Real since 2026-10-27, now that the backend takes images: see "Screenshots" below.)
 - A feedback button on the answer.
 - A share option when the result is a common scam: a call to protect other people, plus sharing to platforms.
 - An upsell link to Onlineschutz that says explicitly: this site is already in our domain database, so with Onlineschutz you would already be protected. This is the main upsell moment.
@@ -55,6 +55,7 @@ Round 4 (feedback on the deployed round 3, 2026-10-20):
 
 **Calls.** Both go through the front door, a `wb-auth-proxy`:
 - `POST /v1/scam-check { message (max 4000), language: de · en · cs }` → `{ answer_id, answer, fallback, timing, versions }`. A model failure or an overrun of the 5 s deadline is a `caution` answer with `fallback: true`, never an error.
+- **Screenshots (announced 2026-10-27, not on any pushed branch or dev1 yet):** an optional `image: { mime_type: image/jpeg · image/png · image/webp, data: <plain base64> }`, exactly one, at most 5 MB decoded; `message` becomes optional when an image is sent (one of the two is required); the whole body may be 8 MiB (else `413`); a `mime_type` that doesn't match the bytes is a `400`. `language` binds the answer's language, so the page always sends its own. Today's backend ignores the unknown `image`, still requires `message` and refuses bodies over 1 MiB: until it ships, a screenshot alone fails and one with text is checked as text only. So the page's screenshot support must not deploy before the backend's.
 - `POST /v1/feedback { answer_id, rating: up · down, comment (max 500) }` → `200`. A second rating replaces the first; a foreign or unknown id is `404`.
 - **Token:** an HS256 integration JWT (`client_id`, `user_id`, `exp`) goes raw into `Authorization`, without "Bearer". Every response carries a fresh one in `Wb-Token`, valid **15 minutes** (measured: the refreshed token expires 15 min after the call, whatever the original's expiry).
 - **Limits:** 20 checks per `user_id` per UTC day (`429 QUOTA_EXCEEDED`), 60 per tenant per minute (`429 RATE_LIMITED`), and the proxy's own limit per client, user and IP (plain-text `429 Limit exceeded`). Feedback is free.
@@ -84,13 +85,14 @@ Round 4 (feedback on the deployed round 3, 2026-10-20):
 4. **A reason field for feedback:** the page sends its code (`wrong_verdict` · `unclear` · `not_helpful`) in `comment` for now.
 5. **Shorter help:** `if_already_happened` came back with 1–3 sentences; one short sentence fits the help line.
 6. `/health/check` is listed without auth in the swagger, but the front door wants a token.
+7. **Screenshots** (from the designer's concept review, 2026-10-27): are links read from an image looked up in threat intelligence? If not, a screenshot never gets Onlineschutz, the main upsell. Does the 5 s deadline hold with an image, or do most screenshot checks come back as the fallback `caution`? The page allows 25 s for a check with a screenshot (15 s for text), for the upload from a phone; the Netlify function still stops after 9 s.
 
 - **Kept from the brief:** the reason contract (round 4): 2 short sentences, where the link really goes and the real site, then what they're after. A domain that isn't in the text just isn't marked.
 - **Dropped from the brief's demo:** the follow-up question with answer buttons, and the tip.
 - **Type names from the deck**, shown on the page since round 2: Paket‑Trickser, Konto‑Knacker, Hallo‑Mama‑Schwindler, Goldesel, Liebes‑Lügner. English: Parcel Trickster, Account Cracker, Hi‑Mum Faker, Golden Goose, Love Liar.
 - **Two types from O₂ CZ** (round 4), not in the deck: Schein‑Banker / Bogus Banker (`bank_impersonation`: poses as the bank or the police, wants your money in a „sicheres Konto“) and Support‑Spion / Support Spy (`tech_support`: fake tech support, wants remote access). CZ's seventh, „Pan Naléhavý“ (Mr Urgent: panic, then a fake link), is the Konto‑Knacker here.
 - **Share texts** exist for the four types the backend can send (parcel, account, family, profit; the last three written on 2026-10-22, not reviewed yet). A type without `share.message.*` gets no share card. Romance, bank and tech support need theirs once the backend sends them.
-- **Later ideas in the brief:** screenshots and images, WhatsApp and other messengers, the "Oma Hilde" avatar, and a place inside the O₂ Security Hub (2027).
+- **Later ideas in the brief:** screenshots and images (built 2026-10-27), WhatsApp and other messengers, the "Oma Hilde" avatar, and a place inside the O₂ Security Hub (2027).
 
 ## O₂ Onlineschutz (the upsell)
 
@@ -107,7 +109,7 @@ Round 4 (feedback on the deployed round 3, 2026-10-20):
 **Phones (one column):**
 1. **Hero:** Blauverlauf (the O₂ blue gradient) with the logo, "Scam-Check", a Light Blue "Demo" tag and the DE|EN switch. H1 "Ist das Betrug?" and the lead „In Sekunden weißt du Bescheid.“
 2. **Form card:** it overlaps the hero.
-   - The field, with a small "Beispiel einfügen" chip and an icon-only camera button inside its border.
+   - The field, with a small "Beispiel einfügen" chip and an icon-only camera button inside its border. An attached screenshot shows as a thumbnail with a × in their place.
    - The empty-field hint.
    - "Jetzt prüfen" with a search icon.
 3. **Slot below the form** shows one of:
@@ -119,7 +121,6 @@ Round 4 (feedback on the deployed round 3, 2026-10-20):
      - the share card and "Andere Nachricht prüfen"
    - the demo notice for any text other than the example
 4. **„Kennst du diese 7 Maschen?“** below the slot, only while the slot is empty: a row of seven cards that scrolls sideways (name, one line, a still picture on Beyond Blue), with ← a scroll bar → under it. The cards don't open.
-5. **Screenshot popup:** a native `<dialog>`.
 
 **Desktop (from 1024 px):** full-width rows, one thing at a time, no tiles side by side.
 1. A compact hero (H1 64 px, the lead on one line, a small bubble in the free dark area).
@@ -153,7 +154,7 @@ Keep these unless you have a reason to change them. Round 1 comes first (the des
   - No Facebook, because it drops the text. No "Mehr …".
   - The shared text never contains the scam link, and the shared URL has no `?lang`.
   - Links show a branded preview (`public/og.jpg`).
-- **Screenshot button:** a camera icon only, opening a "coming soon" popup. It works as a fake door: the taps measure demand. It's a bottom sheet on phones and centred on desktop; Escape and a tap on the backdrop close it.
+- **Screenshot button:** a camera icon only. Until 2026-10-27 it opened a "coming soon" popup as a fake door; now it attaches a screenshot (see "Screenshots" below).
 - **Language switch while a result shows:**
   - The answer is fetched again in the new language.
   - The card stays fully in the old language (with a `lang` attribute) until the new answer arrives, then swaps all at once.
@@ -399,11 +400,37 @@ No designer review yet: the new states are stand-ins until caution and legit get
 - `caution` (also the fallback): an O₂ orange disk (`#FFA55A`, ink icon: white would be 1.9:1) on a `#FFF4EA` tint. `legit`: an O₂ green disk with a tick, ink on `#DDF7EA`. „So bleibst du sicher“ stays the steps' title for both, which reads oddly over „Genieße das Abendessen.“; that's for their design.
 - Nothing is red unless the backend flagged the domain (`links`), and nothing red on `legit`.
 
+### Screenshots (2026-10-27)
+
+The backend takes one image per check (see "The backend"). The designer's verdict on the concept: go with changes (all MUSTs taken); on the build: SHIP once dev1 takes images, with COULDs 2, 4, 5 and 6 taken. Not taken: a grey tile while a picture is prepared (rare, and one more state) and a loader shot with the screenshot caption (the dev server only shows the loader when it's live; `check.mjs` checks the caption).
+
+**Attaching**
+- The camera button opens the system picker (`accept="image/*"`: the photo library, the camera or files on phones). An image pasted into the field attaches too (Ctrl+V after Win+Shift+S), but only when the clipboard has no text: Outlook, Word and others put a picture of the selection next to copied text, and pasting an e‑mail must paste the e‑mail. An empty text, which some apps add, doesn't count.
+- No drag and drop: the picker and paste cover it, and a drop beside the field would open the image in the tab unless the whole window catches it.
+- The label is „Screenshot hinzufügen“ / "Add a screenshot", not „hochladen“: nothing leaves the phone before „Jetzt prüfen“.
+- A third placeholder line says it can be done: „Geht auch als Screenshot.“ / "A screenshot works too." An icon-only camera was fine for a fake door, not for a real feature. Desktop's 3 rows hold exactly the three lines.
+
+**Prepared in the browser** (`image.js`): drawn anew as one JPEG (quality 0.85) of at most 4 megapixels, on white. So anything the browser can show works (HEIC on an iPhone, GIF), the declared type always matches the bytes, location data (EXIF) stays on the phone, and the request stays far below Netlify's 6 MB per function request (base64 adds a third). The cap is on pixels, not the long edge, so a tall scrolling screenshot keeps readable text. A file the browser can't show (or, in theory, still over 4 MB) gets the hint „Mit diesem Bild klappt es nicht. Versuch einen anderen Screenshot.“ and keeps any screenshot already attached.
+
+**Attached**
+- One at a time. The thumbnail takes the place of „Beispiel einfügen“ and the camera, at the bottom of the field: the text above it doesn't move, and the field gets 2 rows, so „Jetzt prüfen“ ends up a little higher, not lower. A camera beside a thumbnail would read as "add another", and „Beispiel einfügen“ beside it would throw the screenshot away with no undo. To replace it: × then the camera; a new paste replaces it.
+- The thumbnail is 64 px tall and keeps the picture's shape between 48 and 112 px wide, showing its top (where the sender is). 48, not 36: a 32 px × hid most of a 36 px one.
+- The × is a 32 px white disc with an ink ring (`--ink-3`) and O₂'s plain cross (`Cancel_outline`; O₂'s `Cross_outline` is the circled one), sticking out 8 px past the corner, with a 48 px tap area. White with a ring shows on light and dark screenshots alike.
+- Focus: after a pick, focus moves to × (the camera is gone); after ×, back to the camera; a paste keeps it in the field. `#status` (now outside the slot, which is hidden on the landing page) says „Screenshot hinzugefügt.“, „Screenshot entfernt.“ or the image hint. It is emptied first and filled a frame later, so the same message twice in a row is read out again. × also clears the image hint.
+- With a screenshot the text is optional, and the placeholder says so: „Noch etwas dazu? Geht auch ohne.“ / "Anything to add? It’s optional." With neither, the hint is „Füg zuerst eine Nachricht oder einen Screenshot ein.“
+
+**Checking**
+- Text, screenshot or both go to the backend. The example's stand-in answer is only for the example text without a screenshot; the notice's „Beispiel einfügen“ removes the screenshot. Without the backend, a screenshot gets the demo notice like any other text.
+- The loader's first caption is „Wir lesen deinen Screenshot …“ / "Reading your screenshot…". Phase 2 looks up links only when the text has one: links inside the image aren't known before the answer.
+- A „Jetzt prüfen“ while the image is still being prepared waits for it before the loader starts (usually under 300 ms; a 48 MP photo on a slow phone can take a second).
+- The screenshot stays attached after the answer, like the text; „Andere Nachricht prüfen“ clears both, and a language switch checks both again.
+- The result doesn't show the screenshot again.
+
 ## Open items
 
 Before anyone outside the team gets the link:
-- **Legal:** Impressum and Datenschutz links, plus one line on what happens to pasted text. Check whether the AI Act needs "Die Antworten erstellt eine KI. Fehler sind möglich." / "AI writes the answers. It can get things wrong."
-- **Real devices:** test the keyboard handling on an iPhone in Safari and an Android phone in Chrome, with the example pasted. So far it's only verified in automation.
+- **Legal:** Impressum and Datenschutz links, plus one line on what happens to pasted text and screenshots (a screenshot shows more than the message: other chats, names, notifications). Check whether the AI Act needs "Die Antworten erstellt eine KI. Fehler sind möglich." / "AI writes the answers. It can get things wrong."
+- **Real devices:** test the keyboard handling on an iPhone in Safari and an Android phone in Chrome, with the example pasted. So far it's only verified in automation. Also attach a screenshot by tapping the camera: the × that gets focus should show no focus ring after a tap (s05 shows it after programmatic focus in automation), and a big photo should be ready in about a second.
 - **O₂ sign-off:** red as the scam signal, the Onlineschutz wording, and the Trickser with its lila grammar (a new kind of brand asset).
 - **Footer:** Impressum and Datenschutz (removed in round 2 together with its old line).
 - **Netlify:** check that the site is linked to this repo with `dev` as the production branch.
@@ -411,12 +438,13 @@ Before anyone outside the team gets the link:
 To go live with the backend (diagrams, test results and the order of the steps: https://claude.ai/artifact/DaYUz7hgcne8c39s2gY9kF):
 - **A token per visitor.** Since 2026-10-22 (the owner's OK) `netlify/functions/api.mjs` passes `/api` on with one shared test token from the Netlify variable `SCAM_CHECK_TOKEN`: fine for the team, but everyone shares its user's 20 checks a day, every check is stored under that user, and it expires on 2026-11-04. Before anyone outside the team: the function mints a short token per request instead, with O₂'s `client_id` and a random `user_id` kept in an HttpOnly cookie, so the quota counts per browser. Not an IP hash: O₂ mobile customers share carrier NAT addresses, so one id would pool many people's quota. Needs the front door's secret and O₂'s `client_id` from the backend team. If O₂ hosts the page later, O₂'s backend does this.
 - **Netlify:** set `VITE_API_URL=/api`, `SCAM_CHECK_URL` and `SCAM_CHECK_TOKEN` in the Netlify UI and redeploy. Then check on the live site that dev1 accepts calls from Netlify's servers and which client IP the front door sees (the function sends the visitor's in `X-Forwarded-For`).
-- **Backend asks** 1–6 above, most of all `links` for Onlineschutz.
+- **Backend asks** 1–7 above, most of all `links` for Onlineschutz.
+- **Screenshots go live with the backend's image support** on dev1, not before (see "The backend"). Before that push, check one scam screenshot and one harmless one end to end through the Netlify function, which stops after 9 s.
 - **Legal:** the backend stores every message with its answer, with no deletion yet. The page needs its line on what happens to pasted text before real people use it.
 
 Next iteration:
 - **Real API:** designs for the `caution` (orange) and `legit` (green) verdicts; the error states have stand-in copy (round "Backend integration" above).
-- **Tracking:** example vs. own text, each check, the verdict, feedback and its reason, Onlineschutz clicks, shares, and taps on the screenshot button. These answer the PoC's questions. Since round 2 also: stories watched to the end, pauses and replays; since round 4: the last card seen in the carousel and the arrow presses.
+- **Tracking:** example vs. own text, each check, the verdict, feedback and its reason, Onlineschutz clicks and shares. These answer the PoC's questions. Since 2026-10-27: screenshots added (picked or pasted), removed and checked, and the verdicts by input (text, screenshot, both); the fake door's tap count is gone. Since round 2 also: stories watched to the end, pauses and replays; since round 4: the last card seen in the carousel and the arrow presses.
 - **Share texts** for the six types other than `parcel_scam`.
 - **Stories** for Schein‑Banker and Support‑Spion (9 s, three beats, steps `scam.*.s1–s3` and `scam.*.rule`), so their results get „So läuft der Trick“.
 - **Animation smoothness** on a low-end Android phone.

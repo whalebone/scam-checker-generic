@@ -39,12 +39,20 @@
         <div class="field">
           <label class="sr-only" for="message" data-i18n="form.label"></label>
           <textarea id="message" rows="4" data-i18n-placeholder="form.placeholder"></textarea>
+          <!-- An attached screenshot takes the place of both tools: one at a time, removed with its ×. -->
           <div class="field-tools">
             <button type="button" class="tool" id="example" data-i18n="form.example"></button>
             <button type="button" class="tool tool-icon" id="upload" data-i18n-label="form.screenshot">
               <span class="icon i-camera" aria-hidden="true"></span>
             </button>
+            <div class="shot" id="shot" hidden>
+              <img id="shot-img" data-i18n-alt="form.shot" />
+              <button type="button" class="shot-remove" id="shot-remove" data-i18n-label="form.remove">
+                <span class="icon i-close" aria-hidden="true"></span>
+              </button>
+            </div>
           </div>
+          <input type="file" id="picker" accept="image/*" hidden />
         </div>
         <p class="hint" id="hint" hidden data-i18n="form.empty"></p>
         <button type="submit" class="btn btn-primary" id="submit">
@@ -53,10 +61,11 @@
         </button>
       </form>
 
+      <!-- For screen readers: a screenshot added or removed, or a check under way. Outside the slot, which is often hidden. -->
+      <p class="sr-only" id="status" role="status"></p>
+
       <!-- One slot next to (desktop) or below (phones) the form: checking, then the result (or the demo notice). -->
       <section class="slot" id="slot" hidden>
-        <p class="sr-only" id="status" role="status"></p>
-
         <div class="card checking" id="progress" hidden>
           <div class="scene" id="checking-scene"></div>
           <p class="checking-text" id="progress-text" aria-hidden="true"></p>
@@ -154,16 +163,6 @@
         </div>
       </section>
     </main>
-
-    <dialog class="sheet" id="upload-dialog" aria-labelledby="upload-title">
-      <form method="dialog">
-        <button class="close" data-i18n-label="upload.close"><span class="icon i-close" aria-hidden="true"></span></button>
-        <span class="sheet-icon"><span class="icon i-camera" aria-hidden="true"></span></span>
-        <h2 id="upload-title" data-i18n="upload.title"></h2>
-        <p data-i18n="upload.text"></p>
-        <button class="btn btn-primary" autofocus data-i18n="upload.ok"></button>
-      </form>
-    </dialog>
 
     <script type="module" src="/src/main.js"></script>
   </body>

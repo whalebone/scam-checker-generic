@@ -408,6 +408,56 @@ main {
   height: 20px;
 }
 
+/* An attached screenshot, in the tools' place: the text above it doesn't move, the field gets 2 rows
+   (it grows with text as before). The thumbnail keeps the picture's shape up to a point and shows its top,
+   where a screenshot's sender is. */
+.field:has(.shot:not([hidden])) textarea {
+  min-height: calc(2 * 1.4em + 20px);
+}
+
+.shot {
+  position: relative;
+  margin: 12px 8px 0 0; /* room for the × */
+}
+
+.shot img {
+  display: block;
+  width: auto;
+  min-width: 48px; /* a phone screenshot is narrower: it shows its top, not a sliver behind the × */
+  max-width: 112px;
+  height: 64px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  object-fit: cover;
+  object-position: top;
+}
+
+/* White with an ink ring, so it shows on light and dark screenshots alike. The tap area is 48 px. */
+.shot-remove {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1.5px solid var(--ink-3);
+  border-radius: 50%;
+  background: #fff;
+  color: var(--ink);
+}
+
+.shot-remove::after {
+  content: '';
+  position: absolute;
+  inset: -8px;
+}
+
+.shot-remove .icon {
+  width: 16px;
+  height: 16px;
+}
+
 .hint {
   color: var(--danger);
   font-size: 14px;
@@ -946,74 +996,6 @@ main {
   outline: 0; /* it gets focus after a failed check, like the headline after an answer */
 }
 
-/* ---------- Screenshot popup: bottom sheet on phones, centred on larger screens ---------- */
-
-.sheet {
-  width: 100%;
-  max-width: 100%;
-  margin: auto 0 0;
-  padding: 0;
-  border: 0;
-  border-radius: 24px 24px 0 0;
-  background: #fff;
-  color: var(--ink);
-  box-shadow: 0 24px 48px rgb(0 0 30 / 0.14);
-}
-
-.sheet[open] {
-  animation: sheet-in 320ms var(--ease);
-}
-
-.sheet::backdrop {
-  background: rgb(0 0 30 / 0.5);
-}
-
-.sheet form {
-  display: grid;
-  justify-items: start;
-  gap: 12px;
-  padding: 24px 20px calc(20px + env(safe-area-inset-bottom));
-}
-
-.sheet .btn {
-  margin-top: 8px;
-}
-
-.close {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  border: 0;
-  border-radius: 50%;
-  background: none;
-  color: var(--ink-2);
-}
-
-.sheet-icon {
-  display: grid;
-  place-items: center;
-  width: 56px;
-  height: 56px;
-  border-radius: 16px;
-  background: var(--blue-soft);
-  color: var(--blue);
-}
-
-.sheet-icon .icon {
-  width: 28px;
-  height: 28px;
-}
-
-@keyframes sheet-in {
-  from {
-    transform: translateY(100%);
-  }
-}
-
 /* ---------- Hover only where there is a real pointer; on phones it would stick after a tap ---------- */
 
 @media (hover: hover) {
@@ -1036,7 +1018,8 @@ main {
     color: var(--blue);
   }
 
-  .tool:hover {
+  .tool:hover,
+  .shot-remove:hover {
     background: var(--blue-soft);
   }
 
@@ -1069,16 +1052,6 @@ main {
 
   .tile {
     scroll-snap-align: start;
-  }
-
-  .sheet {
-    max-width: 440px;
-    margin: auto;
-    border-radius: 24px;
-  }
-
-  .sheet[open] {
-    animation-name: rise;
   }
 }
 
@@ -1174,7 +1147,7 @@ main {
   }
 
   .field textarea {
-    min-height: calc(3 * 1.4em + 20px); /* lines are long here; it still grows to 8 rows */
+    min-height: calc(3 * 1.4em + 20px); /* lines are long here; it still grows to 8 rows (2 with a screenshot, above) */
   }
 
   .ask .btn-primary {

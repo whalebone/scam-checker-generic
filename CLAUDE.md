@@ -2,7 +2,7 @@
 
 Frontend-only PoC for the O₂ Germany Scam Checker: a static site built with Vite (plain HTML, CSS and JavaScript) and hosted on Netlify. The backend is a separate project (`whalebone/scam-check`). The only server-side code here is `netlify/functions/api.mjs`, which passes `/api` on to it and adds the token.
 
-Status: one example flow (a fake customs/parcel SMS) with a stand-in answer, in German and English, and the real backend connected for any other text when `VITE_API_URL` is set (locally via `.env.development.local`, on Netlify via its environment variables and the function). The landing page shows seven common scam types (taken from O₂ CZ) as a row of cards that scrolls sideways; the result explains the detected type with an animated story. Separate layouts for phones (one column) and desktop (from 1024 px: a wide composer, then full-width split cards).
+Status: one example flow (a fake customs/parcel SMS) with a stand-in answer, in German and English, and the real backend connected for any other text or an attached screenshot when `VITE_API_URL` is set (locally via `.env.development.local`, on Netlify via its environment variables and the function). The landing page shows seven common scam types (taken from O₂ CZ) as a row of cards that scrolls sideways; the result explains the detected type with an animated story. Separate layouts for phones (one column) and desktop (from 1024 px: a wide composer, then full-width split cards).
 
 **Before any UI or UX work, read `docs/product.md`.** It holds:
 - the product goal and the owner's requirements
@@ -43,10 +43,11 @@ On Windows, `runapp.bat` starts the dev server in the background and opens the b
 
 ## Layout
 
-- `index.html` — page markup and entry point; every state (checking, result, notice for the demo or an error, screenshot popup) is a `hidden` section
+- `index.html` — page markup and entry point; every state (checking, result, notice for the demo or an error, the attached screenshot) is a `hidden` section
 - `src/main.js` — JavaScript entry (imports `style.css`): language, check flow, result, feedback, share
 - `src/strings.js` — every visible text, German (`de`) and English (`en`) with the same keys
 - `src/api.js` — the real backend: `POST /v1/scam-check` and `POST /v1/feedback`, the token, errors, and the map from its threat types to the page's seven
+- `src/image.js` — makes a picked or pasted screenshot ready for the backend: redrawn as one JPEG of at most 4 megapixels, without its EXIF data, as base64
 - `src/demo.js` — the example message and its stand-in answer, in the backend's shape; feedback on it is only logged
 - `.env.example` — what to put in `.env.development.local` (git-ignored) to talk to the real backend locally
 - `src/scenes.js` — the cartoons as inline SVG strings: the five scam stories, the loader, the still "spotted" picture, the still Onlineschutz picture, the card pictures (with their white-rim filter)
@@ -75,6 +76,7 @@ On Windows, `runapp.bat` starts the dev server in the background and opens the b
 - **The page reads the backend's shape directly** (`showResult()` in `main.js`): `answer_id`; `answer.verdict` (`scam` · `caution` · `legit`) sets `data-verdict`; `answer.threat_type` maps to one of the seven `SCAM_TYPES` via `scamType()` in `api.js`, only for `scam`; `summary` is the headline, `explanation` the reason, `what_to_do` the steps, `if_already_happened` the help line; `official_domains` are marked green. `links: [{ domain, signal }]` isn't in the backend yet: `signal === 'strong'` shows Onlineschutz and the domains are marked red. `demo.js` sends it for the example.
 - **On Netlify:** the environment variables `VITE_API_URL=/api` (makes the build live), `SCAM_CHECK_URL` (the front door) and `SCAM_CHECK_TOKEN` (secret). The page sends no token there; the function adds it. With one shared test token, all visitors share its user's 20 checks a day and are stored under that user.
 - **Token (local):** the integration JWT goes raw into `Authorization`; each response's `Wb-Token` replaces it (valid 15 minutes), and a 401 starts over once with the configured one.
+- **Screenshots:** one per check, as `image: { mime_type, data }` (plain base64, from `image.js`), with `message` only when there is text; `language` always. Announced by the backend team on 2026-10-27 but not on dev1 yet, which still requires `message`, ignores `image` and refuses bodies over 1 MiB: don't deploy the screenshot input before the backend takes images.
 - The page keeps the loader on screen for at least 3.5 s.
 
 ## Design: o2-design skill
@@ -95,7 +97,7 @@ Netlify's production branch is `dev` (set in the Netlify UI), so every push to `
 - `.bat` files must keep CRLF line endings (enforced by `.gitattributes`).
 - Never set `VITE_API_TOKEN` on Netlify (the token goes in `SCAM_CHECK_TOKEN`), and never commit `.env.development.local`: Vite builds `VITE_*` values into the public JavaScript (that file only reaches the dev server).
 - The backend's front door answers every request without a token with a 401, also the CORS preflight. Call it through `/api` on the page's own origin, never cross-origin.
-- With `.env.development.local` in place the dev server is live: `npm run check` then skips the demo-notice check, and `npm run shots` shows the error notice as `m17`.
+- With `.env.development.local` in place the dev server is live: `npm run check` then skips the demo-notice check, and `npm run shots` shows the error notice as `m18`.
 - To change the port, update `vite.config.js`, `runapp.bat` and `shutdown.bat` together.
 - Put `:hover` styles inside `@media (hover: hover)`; on phones a hover state sticks after a tap.
 - Text fields need a font size of 16 px or more, or iOS zooms in on focus.

@@ -15,7 +15,7 @@ One page in O₂ design, in German and English (DE/EN switch, or `?lang=en`). Ph
 
 Before anything is checked, the page shows the five common scam types as short cartoons (stacked on phones, a list and one story at a time on desktop).
 
-The camera button only shows a "coming soon" popup for now. The backend is mocked in `src/demo.js` with a single demo case. Any other text shows a short demo notice.
+A screenshot can go with the text or instead of it: the camera button attaches one, or paste it into the field. The example gets a stand-in answer from `src/demo.js`; anything else goes to the real backend when `VITE_API_URL` is set, and otherwise gets a short demo notice.
 
 ## Run locally
 

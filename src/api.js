@@ -11,6 +11,9 @@ const TOKEN = import.meta.env.VITE_API_TOKEN ?? ''
 let token = TOKEN // then the one from Wb-Token, which lasts 15 minutes
 
 export const MAX_LENGTH = 4000 // the backend refuses longer messages
+// The backend takes one image of up to 5 MB. Less here: as base64 it grows by a third, and Netlify
+// refuses a request to its function above 6 MB. image.js sends far less anyway.
+export const MAX_IMAGE = 4 * 1024 * 1024
 
 // The backend's threat types that match one of the page's seven (SCAM_TYPES in scenes.js).
 // Romance, tech support and the fake bank adviser have no threat type yet; the others get the plain Trickser.
@@ -61,9 +64,11 @@ async function post(path, body, timeout) {
   throw new CheckError(kind, `${res.status} ${code || reply}`)
 }
 
+// The text, the screenshot ({ mime_type, data } from image.js) or both; the answer comes in the page's language.
 // The backend answers within 5 s (a model failure or an overrun is a caution answer with fallback: true);
-// the rest of the 15 s is for the network.
-export const checkMessage = (text, language) => post('/v1/scam-check', { message: text, language }, 15000)
+// the rest is for the network, and a screenshot takes longer to send from a phone.
+export const checkMessage = (text, language, image = null) =>
+  post('/v1/scam-check', { ...(text && { message: text }), language, ...(image && { image }) }, image ? 25000 : 15000)
 
 // One after the other: the backend keeps the last rating, so the reason must not overtake the bare "Nein".
 // Not worth bothering the user about: a lost rating is only logged.

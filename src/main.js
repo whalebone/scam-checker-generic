@@ -4,6 +4,7 @@ import './scenes.css'
 import { STRINGS } from './strings.js'
 import * as demo from './demo.js'
 import * as api from './api.js'
+import { readImage } from './image.js'
 import { SCAM_TYPES, hasStory, story, portrait, RIM, spotted, CHECKING, BLOCKED } from './scenes.js'
 
 const { EXAMPLES, isExample } = demo
@@ -26,7 +27,8 @@ const scrollBehavior = () => (reducedMotion.matches ? 'auto' : 'smooth')
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 let busy = false
-let checkedText = ''
+let image = null // the attached screenshot, as the backend takes it: { mime_type, data }
+let checked = null // what the shown answer is about: { text, image }
 let backend = demo // where the shown answer came from: the example's stand-in (demo.js) or the real one (api.js)
 let answerId = null
 let shareText = ''
@@ -57,6 +59,7 @@ function translate(root = document, except = null) {
   for (const el of all('data-i18n-html')) el.innerHTML = t(el.dataset.i18nHtml) // our own static strings
   for (const el of all('data-i18n-placeholder')) el.placeholder = t(el.dataset.i18nPlaceholder)
   for (const el of all('data-i18n-label')) el.setAttribute('aria-label', t(el.dataset.i18nLabel))
+  for (const el of all('data-i18n-alt')) el.alt = t(el.dataset.i18nAlt)
 }
 
 function applyLanguage(except = null) {
@@ -236,7 +239,7 @@ function keepSubmitVisible() {
 message.addEventListener('focus', keepSubmitVisible)
 window.visualViewport?.addEventListener('resize', keepSubmitVisible)
 
-// The hint (an empty field, or a message too long for the backend) is only linked to the field
+// The hint (nothing to check, a message too long for the backend, or a picture that won't work) is only linked to the field
 // while it shows, or screen readers would always read it.
 function showHint(key = null) {
   hint.hidden = !key
@@ -248,6 +251,7 @@ function showHint(key = null) {
 }
 
 function useExample() {
+  setImage(null) // the example is a text, and only a text gets its stand-in answer
   message.value = EXAMPLES[lang] // no focus, so the keyboard stays closed
   showHint()
   autoGrow()
@@ -263,27 +267,85 @@ message.addEventListener('keydown', (event) => {
 })
 $('example').addEventListener('click', useExample)
 
-const uploadDialog = $('upload-dialog')
-$('upload').addEventListener('click', () => uploadDialog.showModal())
-uploadDialog.addEventListener('click', (event) => {
-  if (event.target === uploadDialog) uploadDialog.close() // a tap on the backdrop
+// ---------- Screenshot: picked with the camera button or pasted into the field, one at a time ----------
+// While one is attached, its thumbnail takes the place of "Beispiel einfügen" and the camera: × removes it.
+
+const upload = $('upload')
+const picker = $('picker')
+const shotRemove = $('shot-remove')
+let reading = null // a screenshot being prepared (image.js), so a quick "Jetzt prüfen" waits for it
+
+// Emptied first, so the same message twice in a row (two pictures that won't work) is read out again.
+function announce(key) {
+  $('status').textContent = ''
+  requestAnimationFrame(() => ($('status').textContent = t(key)))
+}
+
+function setImage(next) {
+  image = next
+  $('shot').hidden = !image
+  $('example').hidden = upload.hidden = Boolean(image)
+  if (image) $('shot-img').src = `data:${image.mime_type};base64,${image.data}`
+  else $('shot-img').removeAttribute('src')
+  message.dataset.i18nPlaceholder = image ? 'form.placeholder.shot' : 'form.placeholder'
+  message.placeholder = t(message.dataset.i18nPlaceholder)
+  autoGrow()
+}
+
+async function attach(file) {
+  reading = readImage(file)
+  try {
+    setImage(await reading)
+    showHint()
+    announce('form.added')
+    if (document.activeElement !== message) shotRemove.focus() // the camera is gone; a paste keeps typing
+  } catch (error) {
+    console.warn('The screenshot could not be read:', error.message)
+    showHint('form.image')
+    announce('form.image') // the hint is only linked to the field, and focus may be elsewhere
+  }
+  reading = null
+}
+
+upload.addEventListener('click', () => picker.click())
+picker.addEventListener('change', () => {
+  if (picker.files[0]) attach(picker.files[0])
+  picker.value = '' // so the same picture can be picked again
+})
+
+// Only a picture without text: Outlook, Word and others put a picture of the selection next to copied text.
+// Some apps add an empty text, so it's the content that counts.
+message.addEventListener('paste', (event) => {
+  const data = event.clipboardData
+  const file = [...(data?.files ?? [])].find((f) => f.type.startsWith('image/'))
+  if (!file || data.getData('text/plain').trim()) return
+  event.preventDefault()
+  attach(file)
+})
+
+shotRemove.addEventListener('click', () => {
+  setImage(null)
+  showHint() // also "that image won't work": there is no image now
+  announce('form.removed')
+  upload.focus()
 })
 
 // ---------- Check ----------
 
-form.addEventListener('submit', (event) => {
+form.addEventListener('submit', async (event) => {
   event.preventDefault()
+  await reading?.catch(() => {}) // a big photo can take a second on a slow phone; attach() says if it failed
   if (busy) return
   const text = message.value.trim()
-  if (!text || text.length > api.MAX_LENGTH) {
+  if ((!text && !image) || text.length > api.MAX_LENGTH) {
     showHint(text ? 'form.long' : 'form.empty')
     message.focus()
     return
   }
   message.blur()
-  // The example keeps its stand-in answer; other text goes to the real backend once it is set up.
-  if (isExample(text)) check(text, demo)
-  else if (api.live) check(text, api)
+  // The example keeps its stand-in answer; anything else goes to the real backend once it is set up.
+  if (!image && isExample(text)) check(text, null, demo)
+  else if (api.live) check(text, image, api)
   else showNotice('notice.text', 'example')
 })
 
@@ -308,9 +370,9 @@ function setBusy(on) {
   for (const button of langButtons) button.setAttribute('aria-disabled', on) // aria- keeps focus on the switch
 }
 
-async function check(text, from) {
+async function check(text, image, from) {
   setBusy(true)
-  checkedText = text
+  checked = { text, image }
   backend = from
   submit.disabled = true
   $('submit-label').textContent = t('form.busy')
@@ -319,7 +381,8 @@ async function check(text, from) {
   showInSlot(progress)
   bringIntoView()
 
-  const answer = await showChecking(/https?:\/\/|www\./i.test(text), backend.checkMessage(text, lang).catch((error) => error))
+  const pending = backend.checkMessage(text, lang, image).catch((error) => error)
+  const answer = await showChecking(/https?:\/\/|www\./i.test(text), Boolean(image), pending)
 
   if (answer instanceof Error) showError(answer)
   else {
@@ -333,10 +396,10 @@ async function check(text, from) {
 }
 
 // The loader's phases. The Lupe's path in scenes.css takes their first 3.5 s, so it also plays
-// out when the answer comes sooner. Without a link there is nothing to look up in the blocklist.
-async function showChecking(hasLink, pending) {
+// out when the answer comes sooner. Without a link in the text there is nothing to look up in the blocklist.
+async function showChecking(hasLink, hasImage, pending) {
   progress.dataset.link = hasLink ? 'yes' : 'no'
-  setPhase('read')
+  setPhase('read', hasImage ? 'screenshot' : 'read')
   await wait(1700)
   setPhase(hasLink ? 'link' : 'tricks')
   await wait(1800)
@@ -348,10 +411,10 @@ async function showChecking(hasLink, pending) {
   return answer
 }
 
-function setPhase(phase) {
+function setPhase(phase, text = phase) {
   progress.dataset.phase = phase
   const caption = $('progress-text')
-  caption.textContent = t(`progress.${phase}`)
+  caption.textContent = t(`progress.${text}`)
   caption.classList.remove('in')
   void caption.offsetWidth // so the caption fades in again
   caption.classList.add('in')
@@ -364,7 +427,7 @@ async function refreshResult() {
   setBusy(true)
   result.setAttribute('aria-busy', 'true')
   try {
-    const answer = await backend.checkMessage(checkedText, lang)
+    const answer = await backend.checkMessage(checked.text, lang, checked.image)
     result.removeAttribute('lang')
     applyLanguage()
     showResult(answer)
@@ -483,6 +546,7 @@ $('notice-retry').addEventListener('click', () => form.requestSubmit())
 
 $('reset').addEventListener('click', () => {
   showInSlot()
+  setImage(null)
   message.value = ''
   autoGrow()
   window.scrollTo({ top: 0, behavior: scrollBehavior() })
