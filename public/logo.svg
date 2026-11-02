@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- The demo's neutral mark: a message under a magnifying glass, cut out so the hero shows through. Replace with an operator's logo. -->
+  <mask id="lens"><rect width="32" height="32" fill="#fff"/><g fill="none" stroke="#000" stroke-linecap="round"><circle cx="14.4" cy="12.6" r="4.8" stroke-width="2.6"/><path d="M18 16.2l3.6 3.6" stroke-width="3"/></g></mask>
+  <path mask="url(#lens)" fill="#fff" d="M8 3h16a6 6 0 0 1 6 6v9.5a6 6 0 0 1-6 6h-7.2l-6.1 4.8a.9.9 0 0 1-1.5-.7v-4.1H8a6 6 0 0 1-6-6V9a6 6 0 0 1 6-6z"/>
+</svg>

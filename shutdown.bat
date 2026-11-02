@@ -2,7 +2,7 @@
 rem Stops the dev server started by runapp.bat (finds it by its port).
 setlocal
 rem Keep PORT in sync with vite.config.js and runapp.bat.
-set "PORT=5180"
+set "PORT=5190"
 set "PID="
 
 rem Listening sockets have a remote address ending in :0; the PID is the last column.

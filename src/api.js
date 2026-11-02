@@ -11,6 +11,11 @@ const TOKEN = import.meta.env.VITE_API_TOKEN ?? ''
 let token = TOKEN // then the one from Wb-Token, which lasts 15 minutes
 
 export const MAX_LENGTH = 4000 // the backend refuses longer messages
+// The answer languages the backend takes (any other is a 400). In the page's others (Indonesian, Khmer) a real
+// message gets the demo's notice: without a language the model answers in the message's, a fallback in German,
+// and one card would mix two languages. Add a language here once the backend has it.
+const LANGUAGES = ['de', 'en', 'cs']
+export const speaks = (language) => live && LANGUAGES.includes(language)
 // The backend takes one image of up to 5 MB. Less here: as base64 it grows by a third, and Netlify
 // refuses a request to its function above 6 MB. image.js sends far less anyway.
 export const MAX_IMAGE = 4 * 1024 * 1024
@@ -70,7 +75,7 @@ async function post(path, body, timeout) {
 export const checkMessage = (text, language, image = null) =>
   post('/v1/scam-check', { ...(text && { message: text }), language, ...(image && { image }) }, image ? 25000 : 15000)
 
-// One after the other: the backend keeps the last rating, so the reason must not overtake the bare "Nein".
+// One after the other: the backend keeps the last rating, so the reason must not overtake the bare "No".
 // Not worth bothering the user about: a lost rating is only logged.
 let feedbackSent = Promise.resolve()
 export function sendFeedback(feedback) {

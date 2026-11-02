@@ -1,5 +1,5 @@
 {
-  "name": "o2-scamchecker-frontend-poc",
+  "name": "scam-checker-generic",
   "private": true,
   "version": "0.0.0",
   "type": "module",

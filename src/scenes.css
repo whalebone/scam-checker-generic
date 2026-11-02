@@ -55,7 +55,7 @@
   from, to { color: var(--ink); }
 }
 @keyframes beat-dot {
-  from, to { background: var(--blue); color: #fff; box-shadow: none; }
+  from, to { background: var(--brand); color: #fff; box-shadow: none; }
 }
 
 [data-state] .story-sc .bob { animation: bob 1.5s ease-in-out 6 alternate; }
@@ -457,7 +457,7 @@
 [data-phase] .ln2 { animation: ck-ink 0.3s 1.1s both; }
 [data-phase] .ln3 { animation: ck-ink 0.3s 1.6s both; }
 @keyframes ck-ink {
-  to { fill: #0050ff; }
+  to { fill: var(--brand); }
 }
 
 [data-phase] .ck-link { animation: ck-link 3.5s ease-in-out both; }

@@ -1,9 +1,11 @@
-// Small SVG cartoons. No words inside, so they work in both languages. Only the stories and the loader move
-// (CSS in scenes.css); the card pictures, the spotted scene and the Onlineschutz picture are still.
+// Small SVG cartoons. No words and no currency inside (only ?), so they work in every language and market.
+// Only the stories and the loader move (CSS in scenes.css); the card pictures, the spotted scene and the
+// protection picture are still.
 // The grammar of every story: your phone on the left is you, the Trickser on the right is him,
 // lila marks his things, and whatever moves to the right is lost. Each story ends with your coins at his feet.
 // at() places a part with a transform attribute; the class on the <g> inside it is what scenes.css animates
 // (a CSS transform would replace the attribute). Without animation every scene shows its first beat.
+import { BRAND } from './brand.js'
 
 // The order of the cards on the landing page: scams that come as messages first (that's what people paste),
 // then the two that mostly start as calls. bank_impersonation and tech_support have no story yet.
@@ -17,17 +19,19 @@ export const SCAM_TYPES = [
   'tech_support',
 ]
 
-const INK = '#00001e'
-const BLUE = '#0050ff'
-const DARK = '#00008c'
-const LIGHT = '#82dcfa'
-const SOFT = '#e6eeff'
+const INK = '#0b1220'
+// The brand's colours (brand.js), so the drawings change with the page.
+const BLUE = BRAND.colors.brand
+const DARK = BRAND.colors['brand-dark']
+const LIGHT = BRAND.colors.accent
+const SOFT = BRAND.colors['brand-soft']
 const LILA = '#a078ff'
 const LILA_SOFT = '#ece4ff'
-const ORANGE = '#ffa55a'
-const GREEN = '#00dc7d'
-const RED = '#d42e50'
-const GREY = '#b4b4be'
+const ORANGE = '#ffa94d'
+const ORANGE_DARK = '#c9701c' // the rim on a coin
+const GREEN = '#22d38a'
+const RED = '#d1304d'
+const GREY = '#c4c9d2'
 
 const at = (x, y, cls, inner, attrs = '') => `<g transform="translate(${x} ${y})"><g class="${cls}" ${attrs}>${inner}</g></g>`
 const svg = (name, viewBox, inner) =>
@@ -38,7 +42,9 @@ const text = (x, y, size, fill, content) =>
 
 // ---------- Props, drawn around their own centre ----------
 
-const COIN = `<circle r="9" fill="${ORANGE}"/>${text(0, 4.5, 12, DARK, '€')}`
+// A coin without a currency sign, so it is money in every market: a gold disc, its rim and a shine.
+const COIN = `<circle r="9" fill="${ORANGE}"/><circle r="5.6" fill="none" stroke="${ORANGE_DARK}" stroke-width="1.8"/>
+  <path d="M-6.4-2.6A6.9 6.9 0 0 1-2.6-6.4" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/>`
 const CARD = `<rect x="-17" y="-11" width="34" height="22" rx="4" fill="${BLUE}"/><rect x="-17" y="-6" width="34" height="4" fill="${DARK}"/><rect x="-12" y="2" width="8" height="5" rx="1.5" fill="${ORANGE}"/>`
 const KEY = `<circle cx="-9" r="6" fill="none" stroke="${ORANGE}" stroke-width="4"/><path d="M-3 0H13M9 0V5M13 0V6" fill="none" stroke="${ORANGE}" stroke-width="4" stroke-linecap="round"/>`
 const HEART_D = 'M0 10C-6 5-11 1-11-4C-11-8-8-10.5-5.5-10.5C-3-10.5-1-9 0-7C1-9 3-10.5 5.5-10.5C8-10.5 11-8 11-4C11 1 6 5 0 10Z'
@@ -51,7 +57,7 @@ const BOX = `<rect x="-16" y="-10" width="32" height="26" rx="3" fill="${ORANGE}
 const LID = `<rect x="-18" y="-16" width="36" height="7" rx="2" fill="${ORANGE}"/><rect x="-3" y="-16" width="6" height="7" fill="${INK}" opacity=".15"/>`
 // The moth that flutters out of an empty box.
 const MOTH = `<path d="M0-1C-4-9-12-9-11-2C-10 4-3 3 0 1C3 3 10 4 11-2C12-9 4-9 0-1Z" fill="#fff" stroke="${GREY}" stroke-width="1.5"/><path d="M0-5V5" stroke="${INK}" stroke-width="2.5" stroke-linecap="round"/>`
-const SACK = `<path d="M-8-14C-12-20-4-24 0-20C4-24 12-20 8-14C18-8 20 14 10 18C4 20-4 20-10 18C-20 14-18-8-8-14Z" fill="${ORANGE}"/><path d="M-8-14H8" stroke="${INK}" stroke-width="3" stroke-linecap="round"/>${text(0, 10, 15, DARK, '€')}`
+const SACK = `<path d="M-8-14C-12-20-4-24 0-20C4-24 12-20 8-14C18-8 20 14 10 18C4 20-4 20-10 18C-20 14-18-8-8-14Z" fill="${ORANGE}"/><path d="M-8-14H8" stroke="${INK}" stroke-width="3" stroke-linecap="round"/><g transform="translate(0 5) scale(.95)">${COIN}</g>`
 const CLOCK = `<circle r="7" fill="#fff" stroke="${LILA}" stroke-width="2"/><path d="M0-4V0L3 2" fill="none" stroke="${INK}" stroke-width="1.8" stroke-linecap="round"/>`
 // The "Hallo Mama" disguise: a paper plate with a child's face (cap, fringe, pigtails) on his lila stick, held from below.
 // No ring and no slanted handle: only the Lupe is a round face on a diagonal handle. The stick ends at (0, 42).
@@ -84,7 +90,7 @@ const SHIELD = `<path d="M0-40L32-28V-2C32 20 17 33 0 41C-17 33-32 20-32-2V-28Z"
   <path d="M-12 0L-3 9L13-8" fill="none" stroke="${BLUE}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>`
 
 // ---------- The Trickser: about 64 units tall, facing left towards your phone ----------
-// Sticker style (white rim, Dark Blue outline), so he keeps 3:1 contrast on white, pink and Beyond Blue.
+// Sticker style (white rim, brand-dark outline), so he keeps 3:1 contrast on white, the red tint and the brand colour.
 
 const BODY = 'M2-33C21-32 32-17 31 2C30 21 17 32-1 32C-19 32-31 19-31 0C-31-19-17-34 2-33Z'
 const HATS = {
@@ -215,13 +221,13 @@ const STORIES = {
     ${at(112, 50, 'spark', SPARK)}${at(24, 70, 'spark', SPARK)}${at(110, 98, 'spark', SPARK)}
     ${coins(68, 100)}`,
 
-  // ① hearts go back and forth (his lila fingers hold the photo) ② "€?", you send coins ③ the photo tips over: it was him, the heart breaks
+  // ① hearts go back and forth (his lila fingers hold the photo) ② "coin?", you send coins ③ the photo tips over: it was him, the heart breaks
   romance_scam: `${floor}
     ${at(250, 112, 'jump', trickster({ hat: 'bowtie' }))}
     ${at(250, 106, 'r-frame', PROFILE)}
     <g class="r-fingers"><g fill="${LILA}" stroke="${DARK}" stroke-width="1.5"><rect x="202" y="92" width="11" height="7" rx="3.5"/><rect x="202" y="101" width="11" height="7" rx="3.5"/><rect x="287" y="92" width="11" height="7" rx="3.5"/><rect x="287" y="101" width="11" height="7" rx="3.5"/></g>
       <path d="M291 80L304 73L302 86Z" fill="${INK}"/></g>
-    ${at(196, 50, 'r-ask', `<rect x="-22" y="-15" width="44" height="30" rx="10" fill="${LILA_SOFT}"/><path d="M8 13L20 24L0 14Z" fill="${LILA_SOFT}"/>${text(0, 6, 16, DARK, '€?')}`, 'opacity="0"')}
+    ${at(196, 50, 'r-ask', `<rect x="-22" y="-15" width="44" height="30" rx="10" fill="${LILA_SOFT}"/><path d="M8 13L20 24L0 14Z" fill="${LILA_SOFT}"/><g transform="translate(-7 0) scale(.85)">${COIN}</g>${text(9, 6, 16, DARK, '?')}`, 'opacity="0"')}
     ${yourPhone('', `<g transform="translate(32 54) scale(1.7)"><g class="r-beat"><g class="r-whole">${HEART}</g><g class="r-left">${HEART_L}</g><g class="r-right">${HEART_R}</g></g></g>`)}
     ${at(204, 84, 'heart h1', HEART, 'opacity="0"')}${at(104, 78, 'heart h2', HEART, 'opacity="0"')}${at(204, 84, 'heart h3', HEART, 'opacity="0"')}
     ${coins(68, 98)}`,
@@ -240,9 +246,9 @@ const COSTUME = {
   romance_scam: 'bowtie',
 }
 
-// ---------- Landing page: one still picture per scam type, on its card's Beyond Blue panel ----------
-// The Trickser in his costume on a Dark Blue floor, his bait on the left. Everything but the floor gets a white
-// rim (the filter RIM, sticker style): on Beyond Blue, lila, grey and orange alone stay under 3:1.
+// ---------- Landing page: one still picture per scam type, on its card's panel in the brand colour ----------
+// The Trickser in his costume on a brand-dark floor, his bait on the left. Everything but the floor gets a white
+// rim (the filter RIM, sticker style): on the brand colour, lila, grey and orange alone stay under 3:1.
 
 const FLOOR = `<ellipse cx="176" cy="150" rx="72" ry="12" fill="${DARK}"/>`
 const pose = (props) => `<g transform="translate(176 104) scale(1.3)">${trickster(props)}</g>`
@@ -348,7 +354,7 @@ export const CHECKING = svg('check', '20 24 290 152', `
   <g class="ck-dots" opacity="0" fill="${BLUE}"><circle cx="252" cy="40" r="4"/><circle cx="266" cy="40" r="4"/><circle cx="280" cy="40" r="4"/></g>
   ${at(110, 74, 'ck-lupe', `<g class="ck-bob"><g class="ck-hop">${LUPE}</g></g>`)}`)
 
-// ---------- Onlineschutz: the shield in front of your phone. A still picture ----------
+// ---------- The protection (brand.js): the shield in front of your phone. A still picture ----------
 // No Trickser here: the offer's hero is the shield, and the result already shows him twice.
 
 export const BLOCKED = svg('blocked', '20 10 150 100', `

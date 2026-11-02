@@ -1,18 +1,19 @@
 // Screenshots of every page state, for design reviews. Needs the dev server.
 // npm run shots [-- <outDir> <baseUrl>]  →  shots/ (git-ignored), 2x pixel density
-// Names: m = phone 390×844 German, s = small phones (375×667, 360×780), e = English 360, t = tablet 768, d = desktop 1440 and 1024.
+// Names: m = phone 390×844 English (the default), s = small phones (375×667, 360×780), g = German 360,
+// i = Indonesian 360, k = Khmer 360, t = tablet 768, d = desktop 1440 and 1024.
 import { mkdirSync, readdirSync, rmSync } from 'node:fs'
 import { chromium } from 'playwright-core'
 
 const out = process.argv[2] || 'shots'
-const base = process.argv[3] || 'http://localhost:5180/'
+const base = process.argv[3] || 'http://localhost:5190/'
 mkdirSync(out, { recursive: true })
 for (const file of readdirSync(out)) if (file.endsWith('.png')) rmSync(`${out}/${file}`) // no leftovers from removed states
 
 const browser = await chromium.launch({ channel: 'chrome' }) // the installed Google Chrome
 const errors = []
 
-async function open(viewport, { mobile = true, locale = 'de-DE' } = {}) {
+async function open(viewport, { mobile = true, locale = 'en-GB' } = {}) {
   const ctx = await browser.newContext({ viewport, deviceScaleFactor: 2, isMobile: mobile, hasTouch: mobile, locale })
   await ctx.route('**/v1/**', (route) => route.abort()) // never the real backend: a live dev server shows its error notice
   const page = await ctx.newPage()
@@ -39,7 +40,7 @@ const screenshot = async (page) => ({
       c.fillStyle = '#000'
       c.font = 'bold 52px sans-serif'
       c.textAlign = 'center'
-      c.fillText('+49 1521 4471093', 590, 280)
+      c.fillText('+44 7700 900461', 590, 280)
       c.fillStyle = '#e9e9eb'
       c.beginPath()
       c.roundRect(48, 420, 920, 380, 48)
@@ -47,7 +48,7 @@ const screenshot = async (page) => ({
       c.fillStyle = '#000'
       c.font = '46px sans-serif'
       c.textAlign = 'left'
-      const lines = ['Ihr Paket wird beim Zoll', 'festgehalten. Bitte zahlen Sie', 'heute 2,99 € Gebühr:', 'paket-zoll-de.info/z/8K2P']
+      const lines = ['Your parcel is being held', 'at customs. Please pay the', '$2.99 fee today:', 'parcel-fee.info/c/8K2P']
       lines.forEach((line, i) => c.fillText(line, 96, 510 + i * 74))
       return canvas.toDataURL('image/png').split(',')[1]
     }),
@@ -63,7 +64,7 @@ const resultShown = async (page) => {
   await wait(1800) // let the entry animations finish
 }
 
-// Phone, German
+// Phone, English
 const m = await open({ width: 390, height: 844 })
 await shot(m, 'm01-start')
 await shot(m, 'm02-start-full', true)
@@ -111,7 +112,7 @@ await shot(m, 'm16-screenshot')
 await attach(m, { name: 'note.png', mimeType: 'image/png', buffer: Buffer.from('not a picture') })
 await shot(m, 'm17-image-error')
 await m.click('#shot-remove')
-await m.fill('#message', 'Hallo, kommst du heute Abend zum Essen? Liebe Grüße')
+await m.fill('#message', 'Hi, are you coming to dinner tonight? Love, Gran')
 await m.click('#submit')
 await m.waitForSelector('#notice:not([hidden])', { timeout: 15000 })
 await wait(900)
@@ -137,19 +138,24 @@ const tablet = await open({ width: 768, height: 1024 })
 await tablet.locator('.tiles-nav').scrollIntoViewIfNeeded()
 await shot(tablet, 't01-768-types')
 
-// English (from the browser language), 360 px
-const en = await open({ width: 360, height: 780 }, { locale: 'en-GB' })
-await shot(en, 'e01-start')
-await shot(en, 'e02-start-full', true)
-await en.click('#example')
-await en.click('#submit')
-await resultShown(en)
-await shot(en, 'e03-result-full', true)
-await en.click('#reset')
-await en.locator('#message').blur()
-await attach(en)
-await en.evaluate(() => window.scrollTo(0, 0))
-await shot(en, 'e04-screenshot')
+// The other languages (from the browser language), 360 px: German, Indonesian and Khmer
+for (const [prefix, locale] of [['g', 'de-DE'], ['i', 'id-ID'], ['k', 'km-KH']]) {
+  const page = await open({ width: 360, height: 780 }, { locale })
+  await shot(page, `${prefix}01-start`)
+  await shot(page, `${prefix}02-start-full`, true)
+  await page.click('#example')
+  await page.click('#submit')
+  await wait(2600)
+  await shot(page, `${prefix}03-checking`)
+  await resultShown(page)
+  await shot(page, `${prefix}04-result-viewport`)
+  await shot(page, `${prefix}05-result-full`, true)
+  await page.click('#reset')
+  await page.locator('#message').blur()
+  await attach(page)
+  await page.evaluate(() => window.scrollTo(0, 0))
+  await shot(page, `${prefix}06-screenshot`)
+}
 
 // Desktop
 const d = await open({ width: 1440, height: 900 }, { mobile: false })

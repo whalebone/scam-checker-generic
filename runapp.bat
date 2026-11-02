@@ -4,7 +4,7 @@ rem Stop it with shutdown.bat. Server output goes to dev-server.log.
 setlocal
 cd /d "%~dp0"
 rem Keep PORT in sync with vite.config.js and shutdown.bat.
-set "PORT=5180"
+set "PORT=5190"
 set "URL=http://localhost:%PORT%/"
 
 where npm >nul 2>nul || (

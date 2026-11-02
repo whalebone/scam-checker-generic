@@ -1,18 +1,21 @@
-// Behaviour checks for the page. Needs the dev server: npm run check [-- http://localhost:5180/]
-// Texts come from src/strings.js and src/demo.js, so copy edits don't break the checks.
-// The real backend's part starts a second dev server (port 5181) with VITE_API_URL set and answers
+// Behaviour checks for the page. Needs the dev server: npm run check [-- http://localhost:5190/]
+// Texts come from src/strings.js and src/demo.js, so copy edits don't break the checks. Most flows run in German,
+// the language with the most to check (the green official site, the 116 116 link); the others get their own checks.
+// The real backend's part starts a second dev server (port 5191) with VITE_API_URL set and answers
 // its calls in the browser, in the shapes of the backend's api/swagger.yml.
 import { readFileSync } from 'node:fs'
 import { createServer as createHttpServer } from 'node:http'
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright-core'
 import { createServer, loadEnv } from 'vite'
+import { BRAND } from '../src/brand.js'
 import { STRINGS } from '../src/strings.js'
 import { EXAMPLES } from '../src/demo.js'
 
-const base = process.argv[2] || 'http://localhost:5180/'
+const base = process.argv[2] || 'http://localhost:5190/'
 const root = fileURLToPath(new URL('..', import.meta.url))
 const liveDev = Boolean(loadEnv('development', root).VITE_API_URL) // .env.development.local sends other text to the backend
+const LANGS = Object.keys(STRINGS)
 const DE = STRINGS.de
 const EN = STRINGS.en
 const DOMAIN = EXAMPLES.de.match(/https?:\/\/([^/\s]+)/)[1]
@@ -25,14 +28,21 @@ function check(name, ok, detail = '') {
 
 // ---------- Texts ----------
 
-const missingInEn = Object.keys(DE).filter((k) => !(k in EN))
-const missingInDe = Object.keys(EN).filter((k) => !(k in DE))
-check('de and en have the same keys', !missingInEn.length && !missingInDe.length, [...missingInEn, ...missingInDe].join(', '))
+for (const code of LANGS.filter((l) => l !== 'en')) {
+  const missing = [...Object.keys(EN).filter((k) => !(k in STRINGS[code])), ...Object.keys(STRINGS[code]).filter((k) => !(k in EN))]
+  check(`${code} has the same keys as en`, !missing.length, missing.join(', '))
+}
+check('every language has its example', LANGS.every((l) => EXAMPLES[l]?.includes(DOMAIN)))
 const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8')
-const unknown = [...html.matchAll(/data-i18n(?:-html|-placeholder|-label|-alt)?="([^"]+)"/g)].map((m) => m[1]).filter((k) => !(k in DE))
+const unknown = [...html.matchAll(/data-i18n(?:-placeholder|-label|-alt)?="([^"]+)"/g)].map((m) => m[1]).filter((k) => !(k in EN))
 check('every key in index.html exists', !unknown.length, unknown.join(', '))
-const loud = [...Object.entries(DE), ...Object.entries(EN)].filter(([, v]) => v.includes('!')).map(([k]) => k)
-check('no exclamation marks in any text (O₂ voice)', !loud.length, loud.join(', '))
+const texts = LANGS.flatMap((l) => Object.entries(STRINGS[l]).map(([k, v]) => [`${l}:${k}`, v]))
+const loud = texts.filter(([, v]) => v.includes('!')).map(([k]) => k)
+check('no exclamation marks in any text, in any language', !loud.length, loud.join(', '))
+// A white-label demo: no operator's name, product or domain anywhere a visitor could see it.
+const OPERATOR = /O₂|\bO2\b|Onlineschutz|o2online|Telef[oó]nica/i
+const branded = [...texts, ...Object.entries(EXAMPLES), ['index.html', html]].filter(([, v]) => OPERATOR.test(v)).map(([k]) => k)
+check('no text names an operator (O₂, Onlineschutz …)', !branded.length, branded.join(', '))
 
 // ---------- The Netlify function (netlify/functions/api.mjs), against a stand-in backend ----------
 
@@ -87,6 +97,11 @@ async function open(path = '', { site = base, locale = 'de-DE', saved = null, vi
   return page
 }
 const visible = (p, selector) => p.locator(selector).isVisible()
+// The language menu, as a person uses it: focus it, pick a language.
+const pick = async (p, code) => {
+  await p.focus('#lang')
+  await p.selectOption('#lang', code)
+}
 const focusedId = (p) => p.evaluate(() => document.activeElement?.id)
 const showResult = async (p) => {
   await p.click('#example')
@@ -124,24 +139,25 @@ const finishAnimations = (p, selector) => p.locator(selector).evaluate((el) => e
 const pageErrors = []
 
 // Language
-let p = await open('', { locale: 'de-DE' })
-check('a German browser gets German', (await p.textContent('h1')) === DE['hero.title'])
-check('html lang is de', (await p.getAttribute('html', 'lang')) === 'de')
-p = await open('', { locale: 'en-GB' })
-check('an English browser gets English', (await p.textContent('h1')) === EN['hero.title'])
-check('html lang is en-GB', (await p.getAttribute('html', 'lang')) === 'en-GB')
+let p
+for (const [locale, code] of [['en-GB', 'en'], ['de-DE', 'de'], ['id-ID', 'id'], ['km-KH', 'km']]) {
+  p = await open('', { locale })
+  check(`a ${locale} browser gets ${STRINGS[code]['lang.name']}, html lang ${code}`, (await p.textContent('h1')) === STRINGS[code]['hero.title'] && (await p.getAttribute('html', 'lang')) === code)
+}
 p = await open('', { locale: 'fr-FR' })
-check('other browser languages get German', (await p.textContent('h1')) === DE['hero.title'])
+check(`other browser languages get the brand's default (${BRAND.language})`, (await p.textContent('h1')) === STRINGS[BRAND.language]['hero.title'])
+check('the menu offers every language in its own name', (await p.locator('#lang option').allTextContents()).join('|') === LANGS.map((l) => STRINGS[l]['lang.name']).join('|'))
+check('the menu has a name for screen readers', (await p.getAttribute('#lang', 'aria-label')) === STRINGS[BRAND.language]['lang.label'])
 p = await open('?lang=en', { locale: 'de-DE' })
 check('?lang=en opens English', (await p.textContent('h1')) === EN['hero.title'])
 check('?lang=en is not saved', (await p.evaluate(() => localStorage.getItem('lang'))) === null)
-await p.click('[data-lang="de"]')
-check('tapping DE switches to German', (await p.textContent('h1')) === DE['hero.title'])
-check('tapping DE saves the choice', (await p.evaluate(() => localStorage.getItem('lang'))) === 'de')
-check('tapping DE drops ?lang from the URL', !(await p.evaluate(() => location.search)).includes('lang'))
-check('aria-pressed follows the language', (await p.getAttribute('[data-lang="de"]', 'aria-pressed')) === 'true' && (await p.getAttribute('[data-lang="en"]', 'aria-pressed')) === 'false')
-p = await open('', { locale: 'de-DE', saved: 'en' })
-check('the saved choice beats the browser', (await p.textContent('h1')) === EN['hero.title'])
+await pick(p, 'de')
+check('picking Deutsch switches to German', (await p.textContent('h1')) === DE['hero.title'])
+check('picking Deutsch saves the choice', (await p.evaluate(() => localStorage.getItem('lang'))) === 'de')
+check('picking Deutsch drops ?lang from the URL', !(await p.evaluate(() => location.search)).includes('lang'))
+check('the pill shows the language’s code', (await p.textContent('#lang-code')) === DE['lang.code'] && (await p.inputValue('#lang')) === 'de')
+p = await open('', { locale: 'de-DE', saved: 'km' })
+check('the saved choice beats the browser', (await p.textContent('h1')) === STRINGS.km['hero.title'])
 
 // Empty field
 p = await open()
@@ -159,11 +175,19 @@ check('a message over 4000 characters (the backend limit) gets its own hint', (a
 p = await open('', { viewport: { width: 360, height: 780 } })
 const cards = await p.locator('.tile').count()
 check('the landing page shows all 7 scam types as cards', cards === 7 && (await visible(p, '#types')))
-check('the heading counts the cards', DE['types.title'].includes(String(cards)) && EN['types.title'].includes(String(cards)))
+check('the heading counts the cards, in every language', LANGS.every((l) => STRINGS[l]['types.title'].includes(String(cards))))
 await p.locator('#types').scrollIntoViewIfNeeded()
 await p.waitForTimeout(400)
 check('nothing moves on the landing page', (await p.evaluate(() => document.getAnimations().length)) === 0)
-check('every name fits its card at 360 px', await p.evaluate(() => [...document.querySelectorAll('.tile h3')].every((h) => h.scrollWidth <= h.clientWidth)))
+const nameFits = (page) => page.evaluate(() => [...document.querySelectorAll('.tile h3')].every((h) => h.scrollWidth <= h.clientWidth))
+const sideways = (page) => page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)
+const misfits = []
+for (const code of LANGS) {
+  await pick(p, code)
+  if (!(await nameFits(p)) || (await sideways(p))) misfits.push(code)
+}
+check('in every language, every name fits its card at 360 px and nothing scrolls sideways', !misfits.length, misfits.join(', '))
+await pick(p, 'de')
 check('phones: the next card peeks in', await p.evaluate(() => {
   const next = document.querySelector('.tile:nth-child(2)').getBoundingClientRect()
   return next.left < innerWidth - 40 && next.right > innerWidth
@@ -214,7 +238,7 @@ check('the headline heads the white half of the verdict card', await p.evaluate(
 check('the reason marks the scam domain', (await p.textContent('#reason mark.fake')) === DOMAIN)
 check('the reason marks the real site, as plain text', (await p.textContent('#reason mark.real')) === 'zoll.de' && !(await p.locator('#reason a').count()))
 await p.waitForTimeout(400)
-check('the verdict and Onlineschutz cards do not move', await p.evaluate(() => ['verdict', 'protect'].every((id) => !document.getElementById(id).getAnimations({ subtree: true }).length)))
+check('the verdict and protection cards do not move', await p.evaluate(() => ['verdict', 'protect'].every((id) => !document.getElementById(id).getAnimations({ subtree: true }).length)))
 check('the result explains the trick with its story', (await visible(p, '#trick')) && (await p.locator('#trick .sc-parcel_scam').count()) === 1)
 check('the story does not play out of view', (await state(p, '#trick-story')) === 'idle')
 await p.locator('#trick-story').scrollIntoViewIfNeeded()
@@ -230,10 +254,10 @@ check('the story stops after one run', (await state(p, '#trick-story')) === 'don
 check('then the toggle offers "Nochmal ansehen"', (await p.getAttribute('#trick .scene-toggle', 'aria-label')) === DE['story.replay'])
 await p.click('#trick .scene-toggle')
 check('"Nochmal ansehen" plays it again', (await state(p, '#trick-story')) === 'playing')
-check('116 116 is a tel: link', (await p.getAttribute('#help a', 'href')) === 'tel:116116')
-check('page text has no raw ₂ (On Air lacks it)', !(await p.evaluate(() => document.body.innerText.includes('₂'))))
-check('Onlineschutz card shows for a domain in the database', await visible(p, '#protect'))
-check('the Onlineschutz link opens in a new tab', (await p.getAttribute('#protect a', 'target')) === '_blank')
+check('116 116 is a tel: link, named for screen readers', (await p.getAttribute('#help a', 'href')) === 'tel:116116' && (await p.getAttribute('#help a', 'aria-label')) === DE['result.call'].replace('{number}', '116 116'))
+check('the protection card shows for a domain in the database', await visible(p, '#protect'))
+check(`it names the brand’s protection (${BRAND.protection.name}), never split across lines`, (await p.textContent('#protect h2')).includes(BRAND.protection.name.replaceAll(' ', ' ')))
+check('its link goes to the brand’s page, in a new tab', (await p.getAttribute('#protect a', 'href')) === BRAND.protection.url && (await p.getAttribute('#protect a', 'target')) === '_blank')
 check('the share card shows for a known scam type', await visible(p, '#share'))
 check('touch devices get the native share button', (await visible(p, '#share-native')) && !(await visible(p, '#share-links')))
 check('the button is back to normal after the check', (await p.textContent('#submit-label')) === DE['form.submit'] && !(await p.isDisabled('#submit')))
@@ -248,25 +272,29 @@ check('the second post carries the reason as its comment', /comment: '?wrong_ver
 check('feedback says thanks', await visible(p, '[data-step="thanks"]'))
 
 // Language switch while a result shows: the whole card swaps at once
-await p.click('[data-lang="en"]')
+await pick(p, 'en')
 check('during the refresh the card stays fully German', (await p.textContent('#result [data-i18n="result.steps"]')) === DE['result.steps'] && (await p.getAttribute('#result', 'lang')) === 'de')
 check('during the refresh the rest of the page is English', (await p.textContent('h1')) === EN['hero.title'])
-check('during the refresh the switch looks disabled', (await p.getAttribute('[data-lang="de"]', 'aria-disabled')) === 'true')
+check('during the refresh the menu looks disabled', (await p.getAttribute('#lang', 'aria-disabled')) === 'true')
+// A pick, as the browser reports it (Playwright's selectOption waits for aria-disabled to end, even with force)
+await p.evaluate(() => Object.assign(document.getElementById('lang'), { value: 'km' }).dispatchEvent(new Event('change')))
+check('during the refresh the menu changes nothing', (await p.inputValue('#lang')) === 'en' && (await p.textContent('h1')) === EN['hero.title'])
 check('during the refresh the form button is not dimmed', !(await p.isDisabled('#submit')))
 await p.waitForSelector('#result:not([lang])', { timeout: 15000 })
 check('after the refresh the card is English', (await p.textContent('#result [data-i18n="result.steps"]')) === EN['result.steps'])
-check('after the refresh the switch works again', (await p.getAttribute('[data-lang="de"]', 'aria-disabled')) === 'false')
+check('after the refresh the menu works again', (await p.getAttribute('#lang', 'aria-disabled')) === 'false')
 check('the refresh resets the feedback', await visible(p, '[data-step="ask"]'))
 check('the scam type is named in English', (await p.textContent('#spotted')) === EN['result.spotted'].replace('{name}', EN['scam.parcel_scam.name']))
 check('an untouched example follows the language', (await p.inputValue('#message')) === EXAMPLES.en)
-check('focus stays on the language switch', await p.evaluate(() => document.activeElement?.dataset.lang === 'en'))
+check('focus stays on the language menu', (await focusedId(p)) === 'lang')
+check('English names no official site, so nothing is green, and its help line has no number to call', !(await p.locator('#reason mark.real').count()) && !(await p.locator('#help a').count()))
 
 // Reset
 await p.click('#reset')
 check('reset hides the result', !(await visible(p, '#slot')))
 check('reset clears and focuses the field', (await p.inputValue('#message')) === '' && (await focusedId(p)) === 'message')
 check('after reset the scam types are back', await visible(p, '#types'))
-await p.click('[data-lang="de"]')
+await pick(p, 'de')
 await p.waitForTimeout(5500)
 check('after reset, a language switch does not bring the result back', !(await visible(p, '#slot')))
 
@@ -288,6 +316,23 @@ else {
 
 pageErrors.push(...p.logs.filter((l) => l.startsWith('PAGEERROR')))
 
+// Indonesian and Khmer: the example is their own market's scam, and the whole answer is in their language
+for (const code of ['id', 'km']) {
+  const S = STRINGS[code]
+  const q = await open('', { locale: `${code}-${code === 'id' ? 'ID' : 'KH'}`, viewport: { width: 360, height: 780 } })
+  await showResult(q)
+  check(`${code}: the example and the type are in ${S['lang.name']}`, (await q.inputValue('#message')) === EXAMPLES[code] && (await q.textContent('#spotted')) === S['result.spotted'].replace('{name}', S['scam.parcel_scam.name']))
+  check(`${code}: the reason marks the scam domain red and the country’s real site green`, (await q.textContent('#reason mark.fake')) === DOMAIN && (await q.locator('#reason mark.real').count()) === 1)
+  check(`${code}: the headline breaks between its two sentences only`, (await q.locator('#headline span').count()) === 2)
+  check(`${code}: the story’s steps and the share card are in ${S['lang.name']}`, (await q.textContent('#trick .beats li')) === S['scam.parcel_scam.s1'] && (await q.textContent('#share h2')) === S['share.title'])
+  check(`${code}: nothing scrolls sideways on the result at 360 px`, !(await sideways(q)))
+  if (code === 'km') {
+    check('km: the Khmer font loads for Khmer text', q.requests.some((u) => u.includes('NotoSansKhmer')))
+    check('km: the share fallback offers Telegram, Cambodia’s messenger', (await q.textContent('#share-app')) === 'Telegram' && (await q.getAttribute('#share-app', 'href')).startsWith('https://t.me/share/url?'))
+  }
+  pageErrors.push(...q.logs.filter((l) => l.startsWith('PAGEERROR')))
+}
+
 // Screenshot: picked or pasted, one at a time, in the tools' place
 const sh = await open()
 const CHAT = await png(sh, 600, 1300)
@@ -301,9 +346,9 @@ check('a picked screenshot shows as a thumbnail, in place of the example and the
 check('focus moves to its ×, screen readers hear it was added', (await focusedId(sh)) === 'shot-remove' && (await said(sh, DE['form.added'])))
 check('with a screenshot the text is optional, and the placeholder says so', (await sh.getAttribute('#message', 'placeholder')) === DE['form.placeholder.shot'])
 check('with a screenshot the field gets shorter, nothing moves down', (await buttonBottom()) <= bottomBefore, `${bottomBefore} -> ${await buttonBottom()}`)
-await sh.click('[data-lang="en"]')
+await pick(sh, 'en')
 check('the thumbnail and the placeholder follow the language', (await sh.getAttribute('#shot-img', 'alt')) === EN['form.shot'] && (await sh.getAttribute('#message', 'placeholder')) === EN['form.placeholder.shot'])
-await sh.click('[data-lang="de"]')
+await pick(sh, 'de')
 await sh.click('#shot-remove')
 check('× removes it, the tools come back, focus goes to the camera', !(await visible(sh, '#shot')) && (await visible(sh, '#example')) && (await focusedId(sh)) === 'upload' && (await said(sh, DE['form.removed'])))
 check('without a screenshot the placeholder asks for the message again', (await sh.getAttribute('#message', 'placeholder')) === DE['form.placeholder'])
@@ -323,8 +368,8 @@ pageErrors.push(...sh.logs.filter((l) => l.startsWith('PAGEERROR')))
 
 // Phone with the keyboard open (about 400 px visible)
 const k = await open('', { viewport: { width: 390, height: 400 } })
-check('phones never download the desktop bubble', !k.requests.some((u) => u.includes('bubble')))
-check('the field border has 3:1 contrast or more (#73737d)', (await k.evaluate(() => getComputedStyle(document.querySelector('.field')).borderTopColor)) === 'rgb(115, 115, 125)')
+check('a page in a Latin script never downloads the Khmer font', !k.requests.some((u) => u.includes('NotoSansKhmer')))
+check('the field border has 3:1 contrast or more (#6b7280)', (await k.evaluate(() => getComputedStyle(document.querySelector('.field')).borderTopColor)) === 'rgb(107, 114, 128)')
 const before = await k.evaluate(() => document.getElementById('submit').getBoundingClientRect().bottom)
 await k.focus('#message')
 await k.waitForTimeout(300)
@@ -372,7 +417,7 @@ await d.focus('#message')
 await d.keyboard.press('Control+Enter')
 check('desktop: Ctrl+Enter checks the message', await visible(d, '#progress'))
 await d.waitForSelector('#result:not([hidden])', { timeout: 15000 })
-check('desktop: the result is full-width rows, verdict then Onlineschutz', await d.evaluate(() => {
+check('desktop: the result is full-width rows, verdict then protection', await d.evaluate(() => {
   const box = (id) => document.getElementById(id).getBoundingClientRect()
   return box('protect').top > box('verdict').bottom && Math.abs(box('protect').width - box('verdict').width) < 2
 }))
@@ -382,7 +427,7 @@ check('desktop: the verdict card is split in two halves', await d.evaluate(() =>
   return body.left >= head.right && Math.abs(body.height - head.height) < 2
 }))
 check('desktop shows WhatsApp, e-mail and copy', (await visible(d, '#share-links')) && !(await visible(d, '#share-native')))
-const shared = decodeURIComponent(await d.getAttribute('#share-whatsapp', 'href'))
+const shared = decodeURIComponent(await d.getAttribute('#share-app', 'href'))
 const warnings = Object.keys(DE).filter((key) => key.startsWith('share.message.')).map((key) => DE[key])
 check('the WhatsApp text is a warning plus the page URL', warnings.some((w) => shared.includes(w)) && shared.endsWith(base))
 check('the shared URL has no ?lang', !shared.includes('lang='))
@@ -393,9 +438,9 @@ pageErrors.push(...d.logs.filter((l) => l.startsWith('PAGEERROR')))
 
 process.env.VITE_API_URL = '/api' // beats .env.development.local
 process.env.VITE_API_TOKEN = 'token-1'
-const server = await createServer({ root, server: { port: 5181 }, logLevel: 'silent' })
+const server = await createServer({ root, server: { port: 5191 }, logLevel: 'silent' })
 await server.listen()
-const L = await open('', { site: 'http://localhost:5181/' })
+const L = await open('', { site: 'http://localhost:5191/' })
 const calls = []
 const replies = []
 await L.route('**/v1/**', async (route) => {
@@ -450,8 +495,8 @@ check('live: summary is the headline, explanation the reason', (await L.textCont
 check('live: a known threat type gets its Trickser and story', (await L.textContent('#spotted')) === DE['result.spotted'].replace('{name}', DE['scam.account_phishing.name']) && (await visible(L, '#trick .sc-account_phishing')))
 check('live: the flagged domain is red, the official one green', (await L.textContent('#reason mark.fake')) === 'dhl-hilfe.info' && (await L.textContent('#reason mark.real')) === 'dhl.de')
 check('live: what_to_do are the steps, if_already_happened the help line', (await L.locator('#steps li').count()) === 3 && (await L.textContent('#help')).includes('Passwort. Karte sperren') && (await L.getAttribute('#help a', 'href')) === 'tel:116116')
-check('live: a strong threat-intelligence signal shows Onlineschutz', await visible(L, '#protect'))
-check('live: the share card warns with the type’s own text', (await visible(L, '#share')) && decodeURIComponent(await L.getAttribute('#share-whatsapp', 'href')).includes(DE['share.message.account_phishing']))
+check('live: a strong threat-intelligence signal shows the protection card', await visible(L, '#protect'))
+check('live: the share card warns with the type’s own text', (await visible(L, '#share')) && decodeURIComponent(await L.getAttribute('#share-app', 'href')).includes(DE['share.message.account_phishing']))
 
 replies.push(stored('token-3'), stored('token-4'))
 await L.click('[data-rating="down"]')
@@ -463,7 +508,7 @@ check('live: each call carries the token from the last Wb-Token', rated?.auth ==
 
 await L.click('#reset')
 await ask(PHISH, ok(answerOf({ verdict: 'caution', threat_type: 'parcel_delivery', official_domains: [] }), { fallback: true }))
-check('live: a caution (also the fallback) gets the warning icon, no Trickser, no Onlineschutz, story or share', (await L.getAttribute('#verdict', 'data-verdict')) === 'caution' && (await visible(L, '#verdict-icon .i-warning')) && !(await visible(L, '#verdict-art')) && !(await visible(L, '#spotted')) && !(await visible(L, '#protect')) && !(await visible(L, '#trick')) && !(await visible(L, '#share')))
+check('live: a caution (also the fallback) gets the warning icon, no Trickser, no protection card, story or share', (await L.getAttribute('#verdict', 'data-verdict')) === 'caution' && (await visible(L, '#verdict-icon .i-warning')) && !(await visible(L, '#verdict-art')) && !(await visible(L, '#spotted')) && !(await visible(L, '#protect')) && !(await visible(L, '#trick')) && !(await visible(L, '#share')))
 
 await L.click('#reset')
 await ask('Dein Paket kommt heute: https://www.dhl.de/sendung', ok(answerOf({ verdict: 'legit', threat_type: 'none', explanation: 'Der Link führt zur echten dhl.de.', what_to_do: ['Alles in Ordnung.'], if_already_happened: [] }), { links: [{ domain: 'www.dhl.de', signal: 'trusted' }] }))
@@ -471,7 +516,7 @@ check('live: legit gets the tick, no help line, nothing red', (await L.getAttrib
 
 await L.click('#reset')
 await ask(PHISH, ok(answerOf()))
-check('live: without links (today’s backend) no Onlineschutz and no red mark', !(await visible(L, '#protect')) && !(await L.locator('#reason mark.fake').count()) && (await L.textContent('#reason mark.real')) === 'dhl.de')
+check('live: without links (today’s backend) no protection card and no red mark', !(await visible(L, '#protect')) && !(await L.locator('#reason mark.fake').count()) && (await L.textContent('#reason mark.real')) === 'dhl.de')
 
 await L.click('#reset')
 await ask(PHISH, error(429, 'QUOTA_EXCEEDED'))
@@ -516,14 +561,27 @@ await ask(PHISH, ok(answerOf()))
 check('live: text and screenshot go together', last().body?.message === PHISH && last().body?.image?.data === sent.image?.data)
 
 replies.push(ok(answerOf({ summary: 'This isn’t DHL.', language: 'en' })))
-await L.click('[data-lang="en"]')
+await pick(L, 'en')
 await L.waitForSelector('#result:not([lang])', { timeout: 15000 })
 check('live: a language switch asks the backend again, in English', last().body?.language === 'en' && (await L.textContent('#headline')) === 'This isn’t DHL.')
 check('live: … with the same text and screenshot', last().body?.message === PHISH && last().body?.image?.data === sent.image?.data)
 replies.push(error(500, 'GENERIC_ERROR'))
-await L.click('[data-lang="de"]')
-await L.waitForFunction(() => document.querySelector('[data-lang="de"]').getAttribute('aria-disabled') === 'false')
+await pick(L, 'de')
+await L.waitForFunction(() => document.getElementById('lang').getAttribute('aria-disabled') === 'false')
 check('live: if that fails, the card stays as it was', (await visible(L, '#result')) && (await L.textContent('#headline')) === 'This isn’t DHL.')
+
+// Indonesian and Khmer aren't backend languages yet: there a real message gets the demo's notice, without a call
+const callsBefore = calls.length
+const KM = STRINGS.km
+await pick(L, 'km')
+check('live: switching to Khmer with a real answer showing gives the demo notice, in Khmer, without a call', (await visible(L, '#notice')) && !(await visible(L, '#result')) && (await L.textContent('#notice-text')) === KM['notice.text'] && calls.length === callsBefore)
+await L.fill('#message', PHISH)
+await L.click('#submit')
+check('live: in Khmer other text gets the demo notice too, without a call', (await visible(L, '#notice')) && calls.length === callsBefore)
+await L.click('#notice-example')
+await L.click('#submit')
+await L.waitForSelector('#result:not([hidden])', { timeout: 15000 })
+check('live: in Khmer the example still gets its whole answer', calls.length === callsBefore && (await L.textContent('#spotted')) === KM['result.spotted'].replace('{name}', KM['scam.parcel_scam.name']))
 pageErrors.push(...L.logs.filter((l) => l.startsWith('PAGEERROR')))
 await server.close()
 

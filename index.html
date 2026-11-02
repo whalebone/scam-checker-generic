@@ -1,32 +1,36 @@
 <!doctype html>
-<html lang="de">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#00008c" />
-    <title>Ist das Betrug? · O₂ Scam-Check</title>
-    <meta name="description" content="Füg die Nachricht ein. In Sekunden weißt du, ob du ihr trauen kannst." />
-    <!-- Link previews: crawlers don't run JavaScript, so one static version serves both languages. -->
+    <meta name="theme-color" content="__THEME_COLOR__" />
+    <title>Is this a scam? · Scam Check</title>
+    <meta name="description" content="Paste a suspicious message. You’ll know in seconds if you can trust it." />
+    <!-- Link previews: crawlers don't run JavaScript, so one static version serves every language. -->
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="O₂ Scam-Check" />
-    <meta property="og:description" content="Ist das Betrug? · Is this a scam?" />
+    <meta property="og:title" content="Scam Check" />
+    <meta property="og:description" content="Is this a scam? · Ist das Betrug? · Apakah ini penipuan? · តើនេះជាការបោកប្រាស់ឬទេ?" />
     <meta property="og:image" content="__SITE_URL__/og.jpg" />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="preload" href="/fonts/OnAir-Regular.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="preload" href="/fonts/OnAir-Bold.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/Figtree-Latin.woff2" as="font" type="font/woff2" crossorigin />
+    <!-- vite.config.js adds the brand's colours (src/brand.js) here. -->
   </head>
   <body>
     <!-- Texts come from src/strings.js via the data-i18n attributes; the cartoons from src/scenes.js. -->
     <header class="hero">
       <div class="wrap">
         <div class="bar">
-          <img class="logo" src="/o2-logo-white.svg" alt="O₂" width="60" height="58" />
+          <!-- The demo's neutral mark. An operator's logo goes in public/logo.svg; then give it alt text. -->
+          <img class="logo" src="/logo.svg" alt="" width="32" height="32" />
           <span class="product" data-i18n="product"></span>
           <span class="badge">Demo</span>
-          <div class="lang" role="group" aria-label="Sprache · Language">
-            <button type="button" data-lang="de" lang="de" aria-label="Deutsch">DE</button>
-            <button type="button" data-lang="en" lang="en" aria-label="English">EN</button>
+          <!-- The native menu does the picking; the pill shows the current language's code (main.js fills both). -->
+          <div class="lang">
+            <span class="icon i-globe" aria-hidden="true"></span>
+            <span class="lang-code" id="lang-code" aria-hidden="true"></span>
+            <span class="icon i-chevron" aria-hidden="true"></span>
+            <select id="lang" data-i18n-label="lang.label"></select>
           </div>
         </div>
         <h1 data-i18n="hero.title"></h1>
@@ -110,11 +114,10 @@
 
           <aside class="card protect" id="protect" hidden>
             <div class="protect-art" id="protect-art"></div>
-            <h2 data-i18n-html="protect.title"></h2>
-            <p data-i18n-html="protect.text"></p>
-            <a class="btn btn-on-blue" href="https://www.o2online.de/extras/cloud-sicherheit/onlineschutz/" target="_blank" rel="noopener">
-              <span data-i18n-html="protect.cta"></span>
-            </a>
+            <h2 data-i18n="protect.title"></h2>
+            <p data-i18n="protect.text"></p>
+            <!-- The operator's page about it: href from src/brand.js. -->
+            <a class="btn btn-on-brand" id="protect-link" target="_blank" rel="noopener" data-i18n="protect.cta"></a>
           </aside>
 
           <section class="card trick" id="trick" hidden>
@@ -129,7 +132,7 @@
               <span data-i18n="share.button"></span>
             </button>
             <div class="share-links" id="share-links" hidden>
-              <a class="pill" id="share-whatsapp" target="_blank" rel="noopener">WhatsApp</a>
+              <a class="pill" id="share-app" target="_blank" rel="noopener" data-i18n="share.app"></a>
               <a class="pill" id="share-email" data-i18n="share.email"></a>
               <button type="button" class="pill" id="share-copy" data-i18n="share.copy"></button>
             </div>

@@ -1,6 +1,7 @@
 // JavaScript entry point — Vite bundles everything imported from here.
 import './style.css'
 import './scenes.css'
+import { BRAND } from './brand.js'
 import { STRINGS } from './strings.js'
 import * as demo from './demo.js'
 import * as api from './api.js'
@@ -19,7 +20,7 @@ const progress = $('progress')
 const result = $('result')
 const notice = $('notice')
 const feedback = $('feedback')
-const langButtons = document.querySelectorAll('[data-lang]')
+const langMenu = $('lang')
 
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)')
 const desktop = matchMedia('(min-width: 1024px)') // the wide layout: a composer, then full-width rows
@@ -34,11 +35,12 @@ let answerId = null
 let shareText = ''
 
 // ---------- Language ----------
-// A ?lang= link wins for this visit, then the choice saved from the switch, then the browser.
+// A ?lang= link wins for this visit, then the choice saved from the menu, then the browser, then the brand's default.
 
-const LANGS = Object.keys(STRINGS)
+const LANGS = Object.keys(STRINGS) // en, de, id, km: also the menu's order
 let lang = pickLanguage()
-const t = (key) => STRINGS[lang][key] ?? key
+const PROTECTION = BRAND.protection.name.replaceAll(' ', ' ') // a product name never breaks across lines
+const t = (key) => (STRINGS[lang][key] ?? key).replaceAll('{protection}', PROTECTION)
 const named = (key, type) => t(key).replace('{name}', t(`scam.${type}.name`))
 
 function pickLanguage() {
@@ -46,34 +48,32 @@ function pickLanguage() {
   try {
     saved = localStorage.getItem('lang')
   } catch {}
-  const browser = navigator.languages.map((l) => l.slice(0, 2).toLowerCase())
-  return [new URLSearchParams(location.search).get('lang'), saved, ...browser].find((l) => LANGS.includes(l)) ?? 'de'
+  const browser = navigator.languages.map((l) => l.slice(0, 2).toLowerCase().replace('in', 'id')) // "in" is Indonesian's old code
+  return [new URLSearchParams(location.search).get('lang'), saved, ...browser].find((l) => LANGS.includes(l)) ?? BRAND.language
 }
-
-const htmlLang = (l) => (l === 'en' ? 'en-GB' : 'de')
 
 // Put the current language's texts into `root`; `except` keeps one part as it is for now.
 function translate(root = document, except = null) {
   const all = (attr) => [...root.querySelectorAll(`[${attr}]`)].filter((el) => !except?.contains(el))
   for (const el of all('data-i18n')) el.textContent = t(el.dataset.i18n)
-  for (const el of all('data-i18n-html')) el.innerHTML = t(el.dataset.i18nHtml) // our own static strings
   for (const el of all('data-i18n-placeholder')) el.placeholder = t(el.dataset.i18nPlaceholder)
   for (const el of all('data-i18n-label')) el.setAttribute('aria-label', t(el.dataset.i18nLabel))
   for (const el of all('data-i18n-alt')) el.alt = t(el.dataset.i18nAlt)
 }
 
 function applyLanguage(except = null) {
-  document.documentElement.lang = htmlLang(lang)
+  document.documentElement.lang = lang
   document.title = t('title')
   translate(document, except)
-  for (const button of langButtons) button.setAttribute('aria-pressed', button.dataset.lang === lang)
+  langMenu.value = lang
+  $('lang-code').textContent = t('lang.code')
 }
 
 function setLanguage(next) {
   if (busy || next === lang) return
   if (message.value === EXAMPLES[lang]) message.value = EXAMPLES[next] // only an untouched example
   const refresh = !result.hidden
-  if (refresh) result.lang = htmlLang(lang) // the shown answer stays in its language until the new one is in
+  if (refresh) result.lang = lang // the shown answer stays in its language until the new one is in
   lang = next
   try {
     localStorage.setItem('lang', lang)
@@ -88,7 +88,13 @@ function setLanguage(next) {
   if (refresh) refreshResult()
 }
 
-for (const button of langButtons) button.addEventListener('click', () => setLanguage(button.dataset.lang))
+// The menu: each language in its own name (and its own script). While busy it changes nothing.
+for (const code of LANGS) langMenu.add(Object.assign(new Option(STRINGS[code]['lang.name'], code), { lang: code }))
+langMenu.addEventListener('change', () => {
+  const next = langMenu.value
+  langMenu.value = lang // until setLanguage() takes it
+  setLanguage(next)
+})
 
 // ---------- The trick's story on the result (scenes.js): it plays once when it is fully in view ----------
 // It gets a pause / play / watch-again button: anything that moves for longer than 5 s
@@ -268,12 +274,12 @@ message.addEventListener('keydown', (event) => {
 $('example').addEventListener('click', useExample)
 
 // ---------- Screenshot: picked with the camera button or pasted into the field, one at a time ----------
-// While one is attached, its thumbnail takes the place of "Beispiel einfügen" and the camera: × removes it.
+// While one is attached, its thumbnail takes the place of "Use example" and the camera: × removes it.
 
 const upload = $('upload')
 const picker = $('picker')
 const shotRemove = $('shot-remove')
-let reading = null // a screenshot being prepared (image.js), so a quick "Jetzt prüfen" waits for it
+let reading = null // a screenshot being prepared (image.js), so a quick "Check now" waits for it
 
 // Emptied first, so the same message twice in a row (two pictures that won't work) is read out again.
 function announce(key) {
@@ -345,7 +351,7 @@ form.addEventListener('submit', async (event) => {
   message.blur()
   // The example keeps its stand-in answer; anything else goes to the real backend once it is set up.
   if (!image && isExample(text)) check(text, null, demo)
-  else if (api.live) check(text, image, api)
+  else if (api.speaks(lang)) check(text, image, api) // not yet in every language (api.js)
   else showNotice('notice.text', 'example')
 })
 
@@ -364,10 +370,10 @@ function bringIntoView() {
   else slot.scrollIntoView({ behavior: scrollBehavior(), block: 'start' })
 }
 
-// While busy, taps on the button and the language switch are ignored, and the switch looks it.
+// While busy, taps on the button and the language menu are ignored, and the menu looks it.
 function setBusy(on) {
   busy = on
-  for (const button of langButtons) button.setAttribute('aria-disabled', on) // aria- keeps focus on the switch
+  langMenu.setAttribute('aria-disabled', on) // aria- keeps focus on the menu
 }
 
 async function check(text, image, from) {
@@ -405,7 +411,7 @@ async function showChecking(hasLink, hasImage, pending) {
   await wait(1800)
   setPhase('think')
   const answer = await pending
-  if (answer instanceof Error) return answer // no „Fertig.“ before an error
+  if (answer instanceof Error) return answer // no "Done." before an error
   setPhase('done')
   await wait(700)
   return answer
@@ -422,8 +428,14 @@ function setPhase(phase, text = phase) {
 
 // The backend answers in one language: after a switch, fetch the visible answer again
 // and swap the whole card at once.
-// If that fails, the card stays as it is, in its own language.
+// If that fails, the card stays as it is, in its own language. A language the backend lacks gets the demo's notice.
 async function refreshResult() {
+  if (backend === api && !api.speaks(lang)) {
+    result.removeAttribute('lang')
+    applyLanguage()
+    showNotice('notice.text', 'example')
+    return
+  }
   setBusy(true)
   result.setAttribute('aria-busy', 'true')
   try {
@@ -442,7 +454,7 @@ async function refreshResult() {
 function showResult({ answer_id, answer, links = [] }) {
   answerId = answer_id
   const scam = answer.verdict === 'scam'
-  // A known, common scam gets the Trickser in his costume. Only for a scam: "Durchschaut" would overclaim on a caution.
+  // A known, common scam gets the Trickser in his costume. Only for a scam: "Spotted" would overclaim on a caution.
   const type = scam ? api.scamType(answer.threat_type) : null
   $('verdict').dataset.verdict = answer.verdict // scam · caution · legit; a fallback is a caution
 
@@ -469,9 +481,13 @@ function showResult({ answer_id, answer, links = [] }) {
   const happened = answer.if_already_happened.join(' ')
   help.hidden = !happened
   if (happened) {
-    // 116 116 is the German hotline for blocking bank cards: make it tappable.
-    const call = () => Object.assign(document.createElement('a'), { href: 'tel:116116', ariaLabel: t('result.call') })
-    help.replaceChildren(...wrap(happened, ['116 116'], call))
+    // A phone number in it (Germany's card-blocking 116 116, a bank's hotline) is the most urgent action: make it tappable.
+    const numbers = happened.match(/\+?\d[\d -]{3,14}\d/g) ?? []
+    const call = (number) => {
+      const digits = number.replace(/[ -]/g, '')
+      return Object.assign(document.createElement('a'), { href: `tel:${digits}`, ariaLabel: t('result.call').replace('{number}', number) })
+    }
+    help.replaceChildren(...wrap(happened, numbers, call))
   }
 
   setFeedback('ask')
@@ -483,7 +499,7 @@ function showResult({ answer_id, answer, links = [] }) {
     watch($('trick-story'))
   }
 
-  $('protect').hidden = !links.some((link) => link.signal === 'strong') // on the blocklist Onlineschutz uses
+  $('protect').hidden = !links.some((link) => link.signal === 'strong') // on the blocklist the protection uses
   // A known, common scam is worth warning others about, once it has a warning text.
   const shareable = type && `share.message.${type}` in STRINGS[lang]
   $('share').hidden = !shareable
@@ -492,9 +508,9 @@ function showResult({ answer_id, answer, links = [] }) {
   showInSlot(result)
 }
 
-// One span per sentence, so a headline only breaks between sentences.
+// One span per sentence, so a headline only breaks between sentences. Khmer ends a sentence with ។.
 function sentences(text) {
-  return text.split(/(?<=\.) /).flatMap((sentence, i) => {
+  return text.split(/(?<=[.។]) /).flatMap((sentence, i) => {
     const span = Object.assign(document.createElement('span'), { textContent: sentence })
     return i ? [' ', span] : [span]
   })
@@ -502,12 +518,12 @@ function sentences(text) {
 
 // Split text around the given parts and put each one into a node from make(part). Longer parts
 // match first, so a real domain inside a fake one stays part of the fake one. A comma or full stop
-// right after a part stays on its line (.glued): after an inline-block it could start the next one.
+// right after a part (also Khmer's ។ and ៖) stays on its line (.glued): after an inline-block it could start the next one.
 function wrap(text, parts, make) {
   const found = parts.filter(Boolean).sort((a, b) => b.length - a.length)
   if (!found.length) return [text]
   const escaped = found.map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-  const pieces = text.split(new RegExp(`(${escaped.join('|')})([.,:;]?)`)) // text, part, punctuation, text, …
+  const pieces = text.split(new RegExp(`(${escaped.join('|')})([.,:;។៖]?)`)) // text, part, punctuation, text, …
   const nodes = [pieces[0]]
   for (let i = 1; i < pieces.length; i += 3) {
     const glued = Object.assign(document.createElement('span'), { className: 'glued' })
@@ -554,7 +570,7 @@ $('reset').addEventListener('click', () => {
 })
 
 // ---------- Feedback: POST /v1/feedback with the answer's id ----------
-// The backend keeps one rating per answer, so the reason after a "Nein" replaces the first post.
+// The backend keeps one rating per answer, so the reason after a "No" replaces the first post.
 // It has no field for the reason yet: the page's code (wrong_verdict · unclear · not_helpful) goes into comment.
 
 function setFeedback(step) {
@@ -582,7 +598,11 @@ $('share-links').hidden = nativeShare
 function prepareShare(type) {
   $('share-text').textContent = named('share.text', type)
   shareText = t(`share.message.${type}`)
-  $('share-whatsapp').href = `https://wa.me/?text=${encodeURIComponent(`${shareText} ${pageUrl}`)}`
+  // The market's messenger (share.app): WhatsApp, or Telegram in Cambodia.
+  $('share-app').href =
+    t('share.app') === 'Telegram'
+      ? `https://t.me/share/url?url=${encodeURIComponent(pageUrl)}&text=${encodeURIComponent(shareText)}`
+      : `https://wa.me/?text=${encodeURIComponent(`${shareText} ${pageUrl}`)}`
   $('share-email').href =
     `mailto:?subject=${encodeURIComponent(t(`share.subject.${type}`))}&body=${encodeURIComponent(`${shareText}\n\n${pageUrl}`)}`
 }
@@ -606,5 +626,6 @@ $('share-copy').addEventListener('click', async (event) => {
 
 $('checking-scene').innerHTML = CHECKING
 $('protect-art').innerHTML = BLOCKED
+$('protect-link').href = BRAND.protection.url
 applyLanguage()
 autoGrow()
